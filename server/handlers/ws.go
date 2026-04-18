@@ -136,6 +136,13 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 			case msg.Type == "trivia:answer":
 				hub.Broadcast(code, outData, client)
 
+			case msg.Type == "presence:request":
+				data := ws.MarshalMsg("presence:list", "", "", presenceList(hub, code))
+				select {
+				case client.Send <- data:
+				default:
+				}
+
 			case msg.Type == "ping":
 				// keepalive — no broadcast needed
 			}

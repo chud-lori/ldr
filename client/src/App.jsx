@@ -34,7 +34,6 @@ function AppRoutes() {
     if (!ws) return
     const off = ws.on('presence:list', (msg) => {
       const next = Array.isArray(msg.payload) ? msg.payload : []
-      // Compare against ref (not state) to avoid side-effects inside state updater
       const prevIds = new Set(onlineRef.current.map((u) => u.userId))
       next.forEach((u) => {
         if (u.userId !== uid && !prevIds.has(u.userId)) {
@@ -44,6 +43,10 @@ function AppRoutes() {
       onlineRef.current = next
       setOnline(next)
     })
+    // Pull current presence list now that the listener is registered.
+    // The server pushes presence on connect but that fires before this
+    // effect runs, so we request it explicitly to avoid the race.
+    ws.send('presence:request', {})
     return off
   }, [ws, uid, toast])
 
