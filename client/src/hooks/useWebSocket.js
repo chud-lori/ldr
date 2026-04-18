@@ -5,6 +5,7 @@ export function useWebSocket(roomCode) {
   const wsRef = useRef(null)
   const listenersRef = useRef({})
   const reconnectTimer = useRef(null)
+  const pingTimer = useRef(null)
   const [connected, setConnected] = useState(false)
 
   const connect = useCallback(() => {
@@ -23,11 +24,15 @@ export function useWebSocket(roomCode) {
     ws.onopen = () => {
       setConnected(true)
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+      // Ping every 30s to keep Cloudflare's proxy from closing idle connections
+      pingTimer.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }))
+      }, 30000)
     }
 
     ws.onclose = () => {
       setConnected(false)
-      // Exponential backoff reconnect (bad internet friendly)
+      if (pingTimer.current) clearInterval(pingTimer.current)
       reconnectTimer.current = setTimeout(connect, 3000)
     }
 
@@ -46,6 +51,7 @@ export function useWebSocket(roomCode) {
     connect()
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+      if (pingTimer.current) clearInterval(pingTimer.current)
       wsRef.current?.close()
     }
   }, [connect])

@@ -41,7 +41,9 @@ export default function Home() {
     setLoading(true)
     setError('')
     try {
-      const data = await api.post(`/rooms/${code.trim().toUpperCase()}/join`, { userName: name })
+      const existingUid = store.get('userId') || ''
+      const joinUrl = `/rooms/${code.trim().toUpperCase()}/join${existingUid ? `?userId=${existingUid}` : ''}`
+      const data = await api.post(joinUrl, { userName: name })
       store.set('userId', data.userId)
       store.set('userName', name)
       store.set('roomCode', data.room.code)

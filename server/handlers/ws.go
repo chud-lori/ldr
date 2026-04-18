@@ -18,8 +18,13 @@ import (
 
 func presenceList(hub *ws.Hub, roomID string) []map[string]string {
 	clients := hub.RoomClients(roomID)
+	seen := make(map[string]bool)
 	list := make([]map[string]string, 0, len(clients))
 	for _, c := range clients {
+		if seen[c.ID] {
+			continue
+		}
+		seen[c.ID] = true
 		list = append(list, map[string]string{"userId": c.ID, "name": c.Name})
 	}
 	return list
@@ -119,6 +124,9 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 
 			case msg.Type == "trivia:answer":
 				hub.Broadcast(code, outData, client)
+
+			case msg.Type == "ping":
+				// keepalive — no broadcast needed
 			}
 		}
 
