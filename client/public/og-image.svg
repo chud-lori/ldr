@@ -15,7 +15,7 @@
   <circle cx="1100" cy="80" r="80" fill="#fb7185" opacity="0.15"/>
 
   <!-- Heart emoji -->
-  <text x="600" y="230" font-size="96" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">👩‍❤️‍👨</text>
+  <!-- <text x="600" y="230" font-size="96" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">👩‍❤️‍👨</text> -->
 
   <!-- App name -->
   <text x="600" y="320" font-size="96" font-weight="800" text-anchor="middle"
@@ -30,18 +30,24 @@
   <!-- Feature pills -->
   <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="22" fill="#be123c">
     <rect x="162" y="460" width="148" height="44" rx="22" fill="#fecdd3"/>
-    <text x="236" y="488" text-anchor="middle">📓 Journal</text>
+    <text x="236" y="488" text-anchor="middle">Journal</text>
+    <!-- <text x="236" y="488" text-anchor="middle">📓 Journal</text> -->
 
     <rect x="328" y="460" width="168" height="44" rx="22" fill="#fecdd3"/>
-    <text x="412" y="488" text-anchor="middle">🎬 Watch Party</text>
+    <text x="412" y="488" text-anchor="middle">Watch Party</text>
+    <!-- <text x="412" y="488" text-anchor="middle">🎬 Watch Party</text> -->
 
     <rect x="514" y="460" width="172" height="44" rx="22" fill="#fecdd3"/>
-    <text x="600" y="488" text-anchor="middle">🗺️ Bucket List</text>
+    <text x="600" y="488" text-anchor="middle">Bucket List</text>
+    <!-- <text x="600" y="488" text-anchor="middle">🗺️ Bucket List</text> -->
 
     <rect x="704" y="460" width="132" height="44" rx="22" fill="#fecdd3"/>
-    <text x="770" y="488" text-anchor="middle">🎯 Trivia</text>
+    <text x="770" y="488" text-anchor="middle">Trivia</text>
+    <!-- <text x="770" y="488" text-anchor="middle">🎯 Trivia</text> -->
 
     <rect x="854" y="460" width="132" height="44" rx="22" fill="#fecdd3"/>
-    <text x="920" y="488" text-anchor="middle">🧩 Puzzle</text>
+    <text x="920" y="488" text-anchor="middle">Puzzle</text>
+    <!-- <text x="920" y="488" text-anchor="middle">🧩 Puzzle</text> -->
+    <!-- <text x="920" y="488" text-anchor="middle">🧩 Puzzle</text> -->
   </g>
 </svg>
