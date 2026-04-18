@@ -155,6 +155,14 @@ export default function Home() {
 
         {error && <p className="text-red-500 text-xs mt-3 text-center">{error}</p>}
       </div>
+
+      <p className="text-center text-slate-400 text-xs mt-4">
+        Made with 💗 by{' '}
+        <a href="https://profile.lori.my.id" target="_blank" rel="noopener noreferrer"
+          className="hover:text-slate-600 underline underline-offset-2 transition-colors">
+          Lori
+        </a>
+      </p>
     </div>
   )
 }

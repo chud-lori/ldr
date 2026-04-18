@@ -48,11 +48,13 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	uid := genCode(8)
 	code := genCode(6)
 
+	now := time.Now()
 	room := models.Room{
-		Code:      code,
-		Name:      body.Name,
-		Members:   []models.Member{{UserID: uid, Name: body.UserName}},
-		CreatedAt: time.Now(),
+		Code:         code,
+		Name:         body.Name,
+		Members:      []models.Member{{UserID: uid, Name: body.UserName}},
+		LastActiveAt: &now,
+		CreatedAt:    now,
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)

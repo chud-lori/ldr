@@ -116,10 +116,23 @@ export default function Guide() {
         <p className="text-xs text-slate-400 pt-1">The personal link is unique to you. Don't share it with your partner — they have their own.</p>
       </Section>
 
-      <div className="text-center pb-4">
+      <Section emoji="🗑️" title="Inactive room deletion">
+        <p>To keep the database clean, rooms with <strong>no activity for 30 days</strong> are automatically deleted — including all journal entries, chat history, bucket list, trivia, and puzzle data.</p>
+        <p>Simply opening the app resets the timer. A warning will appear on the dashboard when your room is within 7 days of deletion.</p>
+        <p className="text-xs text-slate-400">Chat is stored per room (not per video) and persists until the room is deleted.</p>
+      </Section>
+
+      <div className="text-center space-y-3 pb-4">
         <button onClick={() => nav('/dashboard')} className={`${t.btn} rounded-xl px-6 py-2.5 text-sm font-semibold`}>
           Back to Dashboard
         </button>
+        <p className="text-xs text-slate-400">
+          Made with 💗 by{' '}
+          <a href="https://profile.lori.my.id" target="_blank" rel="noopener noreferrer"
+            className="hover:text-slate-600 underline underline-offset-2 transition-colors">
+            Lori
+          </a>
+        </p>
       </div>
     </div>
   )

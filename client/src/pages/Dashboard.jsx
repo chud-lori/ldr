@@ -198,6 +198,23 @@ function SettingsPanel({ code, roomData, onSaved, onClose, t }) {
   )
 }
 
+function ExpiryWarning({ roomData, t }) {
+  if (!roomData?.lastActiveAt) return null
+  const daysInactive = Math.floor((Date.now() - new Date(roomData.lastActiveAt)) / 86400000)
+  if (daysInactive < 23) return null
+  const daysLeft = 30 - daysInactive
+  if (daysLeft <= 0) return null
+  return (
+    <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-3">
+      <span className="text-lg shrink-0">⚠️</span>
+      <div>
+        <p className="text-sm font-semibold text-amber-800">Room expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''}</p>
+        <p className="text-xs text-amber-700 mt-0.5">Rooms with no activity for 30 days are automatically deleted. Open the app together to keep it alive.</p>
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard({ ws, online = [] }) {
   const nav = useNavigate()
   const { t } = useTheme()
@@ -247,6 +264,7 @@ export default function Dashboard({ ws, online = [] }) {
   return (
     <div className="space-y-4">
       <WelcomeBanner code={code} t={t} />
+      <ExpiryWarning roomData={roomData} t={t} />
 
       {/* Room card */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-4">

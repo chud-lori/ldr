@@ -64,6 +64,17 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 		// Register blocks until the client is fully in the hub.
 		hub.Register(client)
 
+		// Touch lastActiveAt — non-blocking.
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			now := time.Now()
+			db.Col("rooms").UpdateOne(ctx,
+				bson.M{"code": code},
+				bson.M{"$set": bson.M{"lastActiveAt": now}},
+			)
+		}()
+
 		// Broadcast updated presence list to everyone in the room.
 		hub.BroadcastAll(code, ws.MarshalMsg("presence:list", "", "", presenceList(hub, code)))
 
