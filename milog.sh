@@ -434,6 +434,54 @@ mode_errors() {
 }
 
 # ==============================================================================
+# MODE: exploits — L7 attack payloads + scanner fingerprints
+# Catches path traversal, LFI, RCE, SQLi, XSS, Log4Shell, dotfile/secret probes,
+# infra-API probes (Docker/actuator/etc), CMS admin scans, and known scanner UAs.
+# Example matches:
+#   GET /index.php?lang=../../../../tmp/foo      (path traversal)
+#   GET /containers/json                         (docker API probe)
+#   GET /SDK/webLanguage                         (hikvision probe)
+#   "libredtail-http" user-agent                 (scanner UA)
+# ==============================================================================
+mode_exploits() {
+    echo -e "${D}Watching exploit attempts across all apps... (Ctrl+C)${NC}\n"
+    local pids=() colors=("$B" "$C" "$G" "$M" "$Y" "$R") i=0
+
+    # Pattern built in groups for readability. ERE, case-insensitive.
+    local pat='\.\./|%2e%2e'                                                   # path traversal
+    pat+='|/etc/passwd|/etc/shadow|/proc/self/environ'                         # target files
+    pat+='|/containers/json|/actuator/|/server-status|/console(/|\?)|/druid/'  # infra probes
+    pat+='|/SDK/web|/cgi-bin/|/boaform/|/HNAP1'                                # embedded-device probes
+    pat+='|/wp-admin|/wp-login|/wp-content/plugins|/xmlrpc\.php'               # wordpress
+    pat+='|/phpmyadmin|/pma/|/mysql/admin'                                     # phpmyadmin
+    pat+='|/\.env|/\.git/|/\.aws/|/\.ssh/|/\.DS_Store'                         # dotfiles / secrets
+    pat+='|/config\.(php|json|yml|yaml)|/web\.config'                          # config files
+    pat+='|jndi:|\$\{jndi|log4j'                                               # log4shell
+    pat+='|union[+% ]+select|select[+% ]+from|sleep\([0-9]|benchmark\('        # sqli
+    pat+='|or[+% ]+1=1|%27[+% ]*or|%27%20or'                                  # sqli
+    pat+='|<script|%3cscript|onerror=|onload=|javascript:'                     # xss
+    pat+='|base64_decode|eval\(|system\(|passthru\(|shell_exec'                # rce fn
+    pat+='|libredtail|nikto|masscan|zgrab|sqlmap|nuclei|gobuster'              # scanner UAs
+    pat+='|dirbuster|wfuzz|l9explore|l9tcpid|hello,\s?world'                   # scanner UAs
+
+    for name in "${LOGS[@]}"; do
+        local file="$LOG_DIR/$name.access.log"
+        local col="${colors[$i]}" label
+        label=$(printf "%-8s" "$name")
+        if [[ -f "$file" ]]; then
+            tail -f "$file" 2>/dev/null | \
+                grep --line-buffered -Ei "$pat" | \
+                awk -v col="$col" -v lbl="$label" -v r="$R" -v nc="$NC" \
+                    '{print col"["lbl"]"nc" "r"[EXPLOIT]"nc" "$0; fflush()}' &
+            pids+=($!)
+        fi
+        (( i++ )) || true
+    done
+    trap 'kill "${pids[@]}" 2>/dev/null; exit' INT TERM
+    wait
+}
+
+# ==============================================================================
 # COLOR PREFIX — background-process tail, one per app with hardcoded color
 # ==============================================================================
 color_prefix() {
@@ -481,6 +529,7 @@ ${W}ANALYSIS${NC}
 ${W}TAILING${NC}
   ${C}(none) / logs${NC}      tail all logs, color prefixed  ${D}<- default${NC}
   ${C}errors${NC}             4xx/5xx lines only
+  ${C}exploits${NC}           LFI / RCE / SQLi / XSS / infra-probe payloads
   ${C}probes${NC}             scanner/bot traffic
   ${C}grep <app> <pat>${NC}   filter-tail one app
   ${C}<app>${NC}              raw tail for one app
@@ -509,6 +558,7 @@ case "${1:-}" in
     stats)    mode_stats "${2:-}" ;;
     grep)     mode_grep "${2:-}" "${3:-.}" ;;
     errors)   mode_errors ;;
+    exploits) mode_exploits ;;
     probes)   tail -f "${FILES[@]}" | grep --line-buffered -Ei 'SSH-2\.0|\\x16\\x03|masscan|zgrab|nmap|nuclei|sqlmap|gobuster|nikto|curl|wget' ;;
     -h|--help|help) show_help ;;
     ""|logs)  tail -f "${FILES[@]}" | color_prefix ;;
