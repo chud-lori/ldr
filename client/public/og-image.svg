@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fff1f2"/>
+      <stop offset="100%" style="stop-color:#ffe4e6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Decorative circles -->
+  <circle cx="60" cy="60" r="120" fill="#fecdd3" opacity="0.4"/>
+  <circle cx="1140" cy="570" r="160" fill="#fda4af" opacity="0.3"/>
+  <circle cx="1100" cy="80" r="80" fill="#fb7185" opacity="0.15"/>
+
+  <!-- Heart emoji -->
+  <text x="600" y="230" font-size="96" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">💑</text>
+
+  <!-- App name -->
+  <text x="600" y="330" font-size="72" font-weight="800" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+        fill="#be123c">LDR Together</text>
+
+  <!-- Tagline -->
+  <text x="600" y="400" font-size="32" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+        fill="#9f1239" opacity="0.8">Stay close, no matter the distance.</text>
+
+  <!-- Feature pills -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="22" fill="#be123c">
+    <rect x="162" y="460" width="148" height="44" rx="22" fill="#fecdd3"/>
+    <text x="236" y="488" text-anchor="middle">📓 Journal</text>
+
+    <rect x="328" y="460" width="168" height="44" rx="22" fill="#fecdd3"/>
+    <text x="412" y="488" text-anchor="middle">🎬 Watch Party</text>
+
+    <rect x="514" y="460" width="172" height="44" rx="22" fill="#fecdd3"/>
+    <text x="600" y="488" text-anchor="middle">🗺️ Bucket List</text>
+
+    <rect x="704" y="460" width="132" height="44" rx="22" fill="#fecdd3"/>
+    <text x="770" y="488" text-anchor="middle">🎯 Trivia</text>
+
+    <rect x="854" y="460" width="132" height="44" rx="22" fill="#fecdd3"/>
+    <text x="920" y="488" text-anchor="middle">🧩 Puzzle</text>
+  </g>
+</svg>
