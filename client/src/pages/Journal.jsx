@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
+import { getDailyPrompt } from '../lib/prompts'
 
 const MOODS = ['😊', '😔', '😍', '😴', '🥰', '😤', '😢', '🤩', '😌', '🥺']
 
@@ -85,6 +86,13 @@ export default function Journal() {
 
         {isToday && (
           <div className="mb-4 space-y-3">
+            <button
+              onClick={() => setContent((c) => c ? c : getDailyPrompt())}
+              className={`w-full text-left text-xs px-3 py-2.5 rounded-xl border border-dashed ${t.codeBg} ${t.accent} leading-relaxed`}
+              title="Tap to use this prompt"
+            >
+              💭 <span className="font-medium">Today's prompt:</span> {getDailyPrompt()}
+            </button>
             <div className="flex gap-2 flex-wrap">
               {MOODS.map((m) => (
                 <button key={m} onClick={() => setMood(m)}

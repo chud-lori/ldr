@@ -4,6 +4,95 @@ import { store } from '../lib/store'
 import { api } from '../lib/api'
 import { useTheme } from '../hooks/useTheme'
 
+function calcStreak(allDates) {
+  const bothDays = new Set(
+    allDates.filter((d) => d.myEntry && d.partnerEntry).map((d) => d.date)
+  )
+  const today = new Date().toISOString().split('T')[0]
+  let streak = 0
+  // If today isn't written yet, start counting from yesterday
+  const startOffset = bothDays.has(today) ? 0 : 1
+  for (let i = startOffset; i < 400; i++) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    if (bothDays.has(d.toISOString().split('T')[0])) streak++
+    else break
+  }
+  return streak
+}
+
+const MILESTONES = [
+  { key: 'room7',    check: (s) => s.roomDays >= 7,   emoji: '🌱', label: '1 week together' },
+  { key: 'room30',   check: (s) => s.roomDays >= 30,  emoji: '🌸', label: '1 month together' },
+  { key: 'room100',  check: (s) => s.roomDays >= 100, emoji: '💫', label: '100 days together' },
+  { key: 'room365',  check: (s) => s.roomDays >= 365, emoji: '🎂', label: '1 year together' },
+  { key: 'jnl1',    check: (s) => s.journalDays >= 1,  emoji: '✏️', label: 'First journal day' },
+  { key: 'jnl7',    check: (s) => s.journalDays >= 7,  emoji: '📓', label: '7 journal days' },
+  { key: 'jnl30',   check: (s) => s.journalDays >= 30, emoji: '📚', label: '30 journal days' },
+  { key: 'streak3',  check: (s) => s.streak >= 3,  emoji: '🔥', label: '3-day streak' },
+  { key: 'streak7',  check: (s) => s.streak >= 7,  emoji: '🔥🔥', label: '7-day streak' },
+  { key: 'streak14', check: (s) => s.streak >= 14, emoji: '⚡', label: '14-day streak' },
+]
+
+function StatsCard({ code, roomData, t }) {
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => {
+    api.get(`/rooms/${code}/journal/all`).then((data) => {
+      const all = data || []
+      const streak = calcStreak(all)
+      const journalDays = all.filter((d) => d.myEntry && d.partnerEntry).length
+      const roomDays = roomData?.createdAt
+        ? Math.floor((Date.now() - new Date(roomData.createdAt)) / 86400000)
+        : 0
+      setStats({ streak, journalDays, roomDays })
+    }).catch(() => {})
+  }, [code, roomData])
+
+  if (!stats) return null
+
+  const unlocked = MILESTONES.filter((m) => m.check(stats))
+  const locked   = MILESTONES.filter((m) => !m.check(stats))
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-4">
+      {/* Numbers row */}
+      <div className="grid grid-cols-3 gap-3 text-center">
+        {[
+          { val: stats.streak, label: 'day streak', emoji: '🔥' },
+          { val: stats.journalDays, label: 'journal days', emoji: '📓' },
+          { val: stats.roomDays, label: 'days together', emoji: '💑' },
+        ].map(({ val, label, emoji }) => (
+          <div key={label} className={`rounded-xl py-3 px-2 ${t.codeBg}`}>
+            <div className="text-xl mb-0.5">{emoji}</div>
+            <div className={`text-2xl font-bold ${t.accent}`}>{val}</div>
+            <div className="text-xs text-slate-500 leading-tight mt-0.5">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Milestones */}
+      {(unlocked.length > 0 || locked.length > 0) && (
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Milestones</p>
+          <div className="flex flex-wrap gap-2">
+            {unlocked.map((m) => (
+              <span key={m.key} className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${t.accentBg} ${t.accent}`}>
+                {m.emoji} {m.label}
+              </span>
+            ))}
+            {locked.slice(0, 3).map((m) => (
+              <span key={m.key} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium bg-slate-100 text-slate-400">
+                🔒 {m.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function WelcomeBanner({ code, t }) {
   const [visible, setVisible] = useState(() => !store.get('seenWelcome'))
   const [copied, setCopied] = useState(false)
@@ -326,6 +415,8 @@ export default function Dashboard({ ws, online = [] }) {
           <button onClick={saveMeetup} className={`${t.btn} px-4 rounded-xl text-sm font-medium`}>Set</button>
         </div>
       </div>
+
+      <StatsCard code={code} roomData={roomData} t={t} />
 
       {/* Feature grid */}
       <div className="grid grid-cols-2 gap-3">

@@ -85,7 +85,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-rose-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-rose-50 flex flex-col items-center justify-center p-4 gap-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
         <div className="text-center mb-6">
           <div className="text-5xl mb-2">💑</div>
