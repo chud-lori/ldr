@@ -129,6 +129,32 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, map[string]any{"userId": uid, "room": room})
 }
 
+func UpdateMe(w http.ResponseWriter, r *http.Request) {
+	code := strings.ToUpper(chi.URLParam(r, "code"))
+	uid := userID(r)
+
+	var body struct {
+		Name string `json:"name"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+	if body.Name == "" {
+		http.Error(w, "name required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	db.Col("rooms").UpdateOne(ctx,
+		bson.M{"code": code, "members.userId": uid},
+		bson.M{"$set": bson.M{"members.$.name": body.Name}},
+	)
+
+	var updated models.Room
+	db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&updated)
+	respond(w, http.StatusOK, updated)
+}
+
 func UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	code := strings.ToUpper(chi.URLParam(r, "code"))
 	uid := userID(r)

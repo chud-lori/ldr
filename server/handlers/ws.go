@@ -16,6 +16,15 @@ import (
 	"ldr-server/ws"
 )
 
+func presenceList(hub *ws.Hub, roomID string) []map[string]string {
+	clients := hub.RoomClients(roomID)
+	list := make([]map[string]string, 0, len(clients))
+	for _, c := range clients {
+		list = append(list, map[string]string{"userId": c.ID, "name": c.Name})
+	}
+	return list
+}
+
 func WSHandler(hub *ws.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		code := strings.ToUpper(chi.URLParam(r, "code"))
@@ -35,21 +44,12 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 			RoomID: code,
 			Send:   make(chan []byte, 64),
 		}
+
+		// Register blocks until the client is fully in the hub.
 		hub.Register(client)
 
-		// Notify room of join
-		hub.BroadcastAll(code, ws.MarshalMsg("presence:join", uid, name, map[string]string{
-			"userId": uid, "name": name,
-		}))
-
-		// Send current online users to new client
-		clients := hub.RoomClients(code)
-		var online []map[string]string
-		for _, c := range clients {
-			online = append(online, map[string]string{"userId": c.ID, "name": c.Name})
-		}
-		conn.Write(r.Context(), websocket.MessageText,
-			ws.MarshalMsg("presence:list", "", "", online))
+		// Broadcast updated presence list to everyone in the room.
+		hub.BroadcastAll(code, ws.MarshalMsg("presence:list", "", "", presenceList(hub, code)))
 
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
@@ -83,14 +83,11 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 			}
 			msg.UserID = uid
 			msg.Name = name
-
 			outData, _ := json.Marshal(msg)
 
 			switch {
 			case strings.HasPrefix(msg.Type, "watch:") || strings.HasPrefix(msg.Type, "puzzle:"):
 				hub.Broadcast(code, outData, client)
-
-				// Persist puzzle moves
 				if msg.Type == "puzzle:move" {
 					go handlePuzzleMove(code, msg.Payload)
 				}
@@ -102,7 +99,8 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 				json.Unmarshal(msg.Payload, &payload)
 				if payload.Text != "" {
 					go SaveChatMessage(code, uid, name, payload.Text)
-					hub.BroadcastAll(code, outData)
+					// Broadcast excludes sender — sender already added message optimistically
+					hub.Broadcast(code, outData, client)
 				}
 
 			case msg.Type == "trivia:answer":
@@ -110,10 +108,9 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 			}
 		}
 
+		// Unregister blocks until fully removed, then broadcast updated list.
 		hub.Unregister(client)
-		hub.BroadcastAll(code, ws.MarshalMsg("presence:leave", uid, name, map[string]string{
-			"userId": uid, "name": name,
-		}))
+		hub.BroadcastAll(code, ws.MarshalMsg("presence:list", "", "", presenceList(hub, code)))
 	}
 }
 
@@ -143,7 +140,6 @@ func handlePuzzleMove(roomID string, payload json.RawMessage) {
 		}
 	}
 
-	// Check completion
 	completed := true
 	for _, p := range puzzle.Pieces {
 		if p.CurrentX != p.CorrectX || p.CurrentY != p.CorrectY {

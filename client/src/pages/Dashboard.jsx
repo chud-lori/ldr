@@ -65,14 +65,21 @@ function SettingsPanel({ code, roomData, onSaved, onClose, t }) {
   const { themeKey, setTheme, themes } = useTheme()
   const [name, setName] = useState(roomData?.name || '')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   async function save() {
     setSaving(true)
-    const updated = await api.patch(`/rooms/${code}`, { name, theme: themeKey })
-    store.set('roomData', updated)
-    onSaved(updated)
-    setSaving(false)
-    onClose()
+    setError('')
+    try {
+      const updated = await api.patch(`/rooms/${code}`, { name, theme: themeKey })
+      store.set('roomData', updated)
+      onSaved(updated)
+      onClose()
+    } catch (err) {
+      setError(err.message || 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -114,6 +121,8 @@ function SettingsPanel({ code, roomData, onSaved, onClose, t }) {
           </div>
         </div>
 
+        {error && <p className="text-xs text-red-500 text-center">{error}</p>}
+
         <button
           onClick={save}
           disabled={saving}
@@ -126,13 +135,12 @@ function SettingsPanel({ code, roomData, onSaved, onClose, t }) {
   )
 }
 
-export default function Dashboard({ ws }) {
+export default function Dashboard({ ws, online = [] }) {
   const nav = useNavigate()
   const { t } = useTheme()
   const code = store.get('roomCode')
 
   const [roomData, setRoomData] = useState(store.get('roomData'))
-  const [online, setOnline] = useState([])
   const [meetup, setMeetup] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -144,17 +152,6 @@ export default function Dashboard({ ws }) {
       store.set('roomData', data)
     }).catch(() => {})
   }, [code])
-
-  useEffect(() => {
-    if (!ws) return
-    const off1 = ws.on('presence:list', (msg) => setOnline(msg.payload || []))
-    const off2 = ws.on('presence:join', (msg) => setOnline((p) => {
-      const exists = p.find((u) => u.userId === msg.userId)
-      return exists ? p : [...p, { userId: msg.userId, name: msg.name }]
-    }))
-    const off3 = ws.on('presence:leave', (msg) => setOnline((p) => p.filter((u) => u.userId !== msg.userId)))
-    return () => { off1(); off2(); off3() }
-  }, [ws])
 
   async function saveMeetup() {
     if (!meetup) return

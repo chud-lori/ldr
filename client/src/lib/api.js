@@ -1,7 +1,9 @@
+import { store } from './store'
+
 const BASE = '/api'
 
 function headers() {
-  const uid = localStorage.getItem('userId') || ''
+  const uid = store.get('userId') || ''
   return { 'Content-Type': 'application/json', 'X-User-ID': uid }
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { store } from '../lib/store'
 
 export function useWebSocket(roomCode) {
@@ -12,7 +12,10 @@ export function useWebSocket(roomCode) {
     const uid = store.get('userId') || ''
     const name = encodeURIComponent(store.get('userName') || 'unknown')
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
-    const url = `${protocol}://${location.host}/ws/${roomCode}?userId=${uid}&name=${name}`
+    // In dev, connect directly to Go server to avoid Vite proxy EPIPE noise.
+    // In production, same host/port as the page (nginx proxies /ws/).
+    const host = import.meta.env.DEV ? `${location.hostname}:8080` : location.host
+    const url = `${protocol}://${host}/ws/${roomCode}?userId=${uid}&name=${name}`
 
     const ws = new WebSocket(url)
     wsRef.current = ws
@@ -61,5 +64,8 @@ export function useWebSocket(roomCode) {
     }
   }, [])
 
-  return { send, on, connected }
+  // Memoize so the object reference only changes when connection status changes.
+  // Without this, every parent re-render creates a new object → useEffect([ws])
+  // in child components fires constantly, breaking listener registration.
+  return useMemo(() => ({ send, on, connected }), [send, on, connected])
 }

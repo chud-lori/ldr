@@ -2,7 +2,8 @@
 
 **Target:** Ubuntu VPS — 2 vCPU / 2GB RAM / 2GB Swap  
 **Stack:** Go binary + MongoDB + nginx + systemd  
-**Expected RAM usage:** ~520 MB (leaves ~1.4 GB headroom)
+**Deploy flow:** push to GitHub → Actions SSHes in → server pulls & rebuilds  
+**App location:** `~/ldr` (consistent with dolanan, envback, ethok, Sinepil-Stream)
 
 ---
 
@@ -11,16 +12,17 @@
 1. [First-time server setup](#1-first-time-server-setup)
 2. [Install dependencies](#2-install-dependencies)
 3. [MongoDB setup](#3-mongodb-setup)
-4. [Build locally](#4-build-locally)
-5. [Upload to server](#5-upload-to-server)
+4. [GitHub repo + deploy key](#4-github-repo--deploy-key)
+5. [Clone and first build](#5-clone-and-first-build)
 6. [Environment file](#6-environment-file)
 7. [Systemd service](#7-systemd-service)
 8. [nginx config](#8-nginx-config)
 9. [SSL with Let's Encrypt](#9-ssl-with-lets-encrypt)
-10. [Redeploy script](#10-redeploy-script)
+10. [Auto-deploy with GitHub Actions](#10-auto-deploy-with-github-actions)
 11. [Logs and monitoring](#11-logs-and-monitoring)
 12. [MongoDB backup](#12-mongodb-backup)
 13. [Troubleshooting](#13-troubleshooting)
+14. [Optional: MongoDB auth](#14-optional-mongodb-auth)
 
 ---
 
@@ -35,21 +37,15 @@ sudo ufw enable
 sudo ufw status
 ```
 
-### Swap (already enabled on your server — verify)
+### Swap (verify it's active — yours already has 2GB)
 ```bash
 free -h
-# If Swap shows 0, create it:
+# If Swap shows 0:
 sudo fallocate -l 2G /swapfile
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
 sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-```
-
-### Create app directory
-```bash
-sudo mkdir -p /opt/ldr
-sudo chown ubuntu:ubuntu /opt/ldr
 ```
 
 ---
@@ -64,7 +60,14 @@ sudo tar -C /usr/local -xzf go1.25.5.linux-amd64.tar.gz
 rm go1.25.5.linux-amd64.tar.gz
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 source ~/.bashrc
-go version  # should print go1.25.5
+go version   # go1.25.5 linux/amd64
+```
+
+### Bun (for building frontend on server)
+```bash
+curl -fsSL https://bun.sh/install | bash
+source ~/.bashrc
+bun --version
 ```
 
 ### nginx + certbot
@@ -83,8 +86,7 @@ echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gp
   https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" \
   | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
 
-sudo apt update
-sudo apt install -y mongodb-org
+sudo apt update && sudo apt install -y mongodb-org
 sudo systemctl enable mongod
 ```
 
@@ -92,13 +94,11 @@ sudo systemctl enable mongod
 
 ## 3. MongoDB setup
 
-### Cap memory — critical for 2GB RAM
+### Cap memory — important for 2GB RAM
 
 ```bash
 sudo nano /etc/mongod.conf
 ```
-
-Find the `storage:` section and add the cache limit:
 
 ```yaml
 storage:
@@ -106,76 +106,116 @@ storage:
   wiredTiger:
     engineConfig:
       cacheSizeGB: 0.3
-```
 
-Also bind to localhost only (already default, but verify):
-```yaml
 net:
   port: 27017
-  bindIp: 127.0.0.1
+  bindIp: 127.0.0.1   # localhost only
 ```
 
 ```bash
 sudo systemctl start mongod
-sudo systemctl status mongod  # should show Active: running
-```
-
-### Verify MongoDB is working
-```bash
-mongosh --eval "db.runCommand({ ping: 1 })"
-# should print: { ok: 1 }
+mongosh --eval "db.runCommand({ ping: 1 })"   # should print: { ok: 1 }
 ```
 
 ---
 
-## 4. Build locally
+## 4. GitHub repo + deploy key
 
-Run these on **your local machine** before uploading.
+The deploy key lets the server `git pull` from your GitHub repo (read-only).
+
+### On the server — generate the key
+```bash
+ssh-keygen -t ed25519 -C "ldr-deploy-server" -f ~/.ssh/ldr_deploy -N ""
+cat ~/.ssh/ldr_deploy.pub   # copy this output
+```
+
+### Tell SSH to use this key for GitHub
+```bash
+nano ~/.ssh/config
+```
+
+Add:
+```
+Host github-ldr
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/ldr_deploy
+    IdentitiesOnly yes
+```
+
+### On GitHub
+1. Go to your repo → **Settings → Deploy keys → Add deploy key**
+2. Title: `ldr-server`
+3. Paste the public key from above
+4. Leave **Allow write access** unchecked (read-only is enough)
+5. Click **Add key**
+
+### Test the connection
+```bash
+ssh -T github-ldr
+# Hi username/ldr! You've successfully authenticated...
+```
+
+---
+
+## 5. Clone and first build
+
+### Clone the repo
+```bash
+cd ~
+# Use the Host alias from ~/.ssh/config
+git clone github-ldr:YOUR_GITHUB_USERNAME/ldr.git ldr
+cd ldr
+```
+
+### Build script — save as `~/ldr/redeploy.sh`
+```bash
+nano ~/ldr/redeploy.sh
+```
 
 ```bash
-# Clone or navigate to project root
-cd /Users/lori/Projects/ldr
+#!/bin/bash
+set -e
+cd ~/ldr
 
-# Build Go binary for Linux x86_64
+echo "[ldr] pulling latest..."
+git pull
+
+echo "[ldr] building server..."
 cd server
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ldr-server .
-# -s -w strips debug symbols → smaller binary (~8 MB)
+go build -ldflags="-s -w" -o ldr-server .
+cd ..
 
-# Build frontend
-cd ../client
+echo "[ldr] building client..."
+cd client
+bun install --frozen-lockfile
 bun run build
-# Output goes to client/dist/
+cd ..
+
+echo "[ldr] restarting service..."
+sudo systemctl restart ldr
+
+echo "[ldr] done."
+sudo systemctl status ldr --no-pager -l
 ```
-
----
-
-## 5. Upload to server
-
-Replace `your-server-ip` with your actual IP or domain.
 
 ```bash
-# From project root
-SERVER=ubuntu@your-server-ip
-
-# Upload Go binary
-scp server/ldr-server $SERVER:/opt/ldr/
-ssh $SERVER 'chmod +x /opt/ldr/ldr-server'
-
-# Upload built frontend
-scp -r client/dist $SERVER:/opt/ldr/
-
-# Upload env file (first time only)
-scp server/.env $SERVER:/opt/ldr/.env
+chmod +x ~/ldr/redeploy.sh
 ```
+
+### Run first build
+```bash
+~/ldr/redeploy.sh
+```
+
+> The service will fail to start until we set up the `.env` and systemd files below — that's fine for now.
 
 ---
 
 ## 6. Environment file
 
-On the server, set your production values:
-
 ```bash
-nano /opt/ldr/.env
+nano ~/ldr/.env
 ```
 
 ```env
@@ -183,7 +223,7 @@ MONGO_URI=mongodb://localhost:27017
 PORT=8080
 ```
 
-> If you want MongoDB auth (recommended for shared servers), see [MongoDB with auth](#optional-mongodb-auth) below.
+This file stays on the server only — never commit it to GitHub.
 
 ---
 
@@ -196,23 +236,20 @@ sudo nano /etc/systemd/system/ldr.service
 ```ini
 [Unit]
 Description=LDR Together
-Documentation=https://github.com/yourrepo/ldr
 After=network.target mongod.service
 Requires=mongod.service
 
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/opt/ldr
-ExecStart=/opt/ldr/ldr-server
-EnvironmentFile=/opt/ldr/.env
+WorkingDirectory=/home/ubuntu/ldr/server
+ExecStart=/home/ubuntu/ldr/server/ldr-server
+EnvironmentFile=/home/ubuntu/ldr/.env
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=ldr
-
-# Basic hardening
 NoNewPrivileges=true
 PrivateTmp=true
 
@@ -220,14 +257,22 @@ PrivateTmp=true
 WantedBy=multi-user.target
 ```
 
+Allow ubuntu to restart the service without a password (needed for redeploy.sh):
+```bash
+sudo visudo
+```
+
+Add at the bottom:
+```
+ubuntu ALL=(ALL) NOPASSWD: /bin/systemctl restart ldr, /bin/systemctl status ldr
+```
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable ldr
 sudo systemctl start ldr
-sudo systemctl status ldr
+sudo systemctl status ldr   # Active: running
 ```
-
-You should see `Active: active (running)`.
 
 ---
 
@@ -240,46 +285,42 @@ sudo nano /etc/nginx/sites-available/ldr
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com;   # or _ if no domain
+    server_name your-domain.com;   # or _ if using IP only
 
-    # Serve built React app
-    root /opt/ldr/dist;
+    root /home/ubuntu/ldr/client/dist;
     index index.html;
 
-    # Gzip for faster load on slow connections
     gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
+    gzip_types text/plain text/css application/json application/javascript image/svg+xml;
     gzip_min_length 1024;
 
-    # Cache static assets (JS/CSS have hashed filenames)
+    # Cache hashed assets forever
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
 
-    # SPA fallback — all routes go to index.html
+    # SPA fallback
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # API proxy
+    # API
     location /api/ {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_read_timeout 30s;
     }
 
-    # WebSocket proxy
+    # WebSocket
     location /ws/ {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_read_timeout 3600s;   # keep WS alive for 1 hour
+        proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
     }
 }
@@ -287,211 +328,209 @@ server {
 
 ```bash
 sudo ln -sf /etc/nginx/sites-available/ldr /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default   # remove default placeholder
-sudo nginx -t                                  # must print: test is successful
-sudo systemctl reload nginx
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Test it works (HTTP first):
+Smoke test:
 ```bash
-curl http://your-server-ip/api/rooms/FAKECODE
-# should return {"message":"room not found"} — means Go is reachable
+curl http://your-server-ip/api/rooms/TEST
+# {"message":"room not found"} = Go is up and reachable
 ```
 
 ---
 
 ## 9. SSL with Let's Encrypt
 
-You need a domain pointing to your server IP for this step.
+Requires a domain pointing to your server IP.
 
 ```bash
 sudo certbot --nginx -d your-domain.com
-# Follow prompts — choose option 2 to redirect HTTP → HTTPS
+# Choose option 2: redirect HTTP → HTTPS
+sudo certbot renew --dry-run   # verify auto-renewal works
 ```
 
-Certbot auto-edits your nginx config and sets up auto-renewal. Verify:
-```bash
-sudo certbot renew --dry-run   # should succeed
-```
-
-### No domain?
-
-Skip certbot. Access the app via `http://your-server-ip` directly. WebSocket will use `ws://` instead of `wss://` — still works fine on a private connection.
+No domain? Skip this — access via `http://your-server-ip`. WebSocket uses `ws://`, which still works on a private connection.
 
 ---
 
-## 10. Redeploy script
+## 10. Auto-deploy with GitHub Actions
 
-Save this as `deploy.sh` in your project root on your **local machine**:
+Every push to `main` will SSH into your server and run `redeploy.sh`.
 
+### Generate an Actions SSH key (on your local machine)
 ```bash
-#!/bin/bash
-set -e
-
-SERVER="ubuntu@your-server-ip"
-APP_DIR="/opt/ldr"
-
-echo "→ Building Go binary..."
-cd server
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ldr-server .
-cd ..
-
-echo "→ Building frontend..."
-cd client
-bun run build
-cd ..
-
-echo "→ Uploading..."
-scp server/ldr-server $SERVER:$APP_DIR/
-scp -r client/dist $SERVER:$APP_DIR/
-
-echo "→ Restarting service..."
-ssh $SERVER 'sudo systemctl restart ldr'
-
-echo "→ Done. Checking status..."
-ssh $SERVER 'sudo systemctl status ldr --no-pager'
+ssh-keygen -t ed25519 -C "github-actions-ldr" -f ~/.ssh/ldr_actions -N ""
 ```
 
+### Add the public key to your server
 ```bash
-chmod +x deploy.sh
-./deploy.sh
+cat ~/.ssh/ldr_actions.pub
+# Copy the output, then on the server:
+echo "PASTE_PUBLIC_KEY_HERE" >> ~/.ssh/authorized_keys
+```
+
+### Add secrets to GitHub
+Go to your repo → **Settings → Secrets and variables → Actions → New repository secret**
+
+| Secret name | Value |
+|---|---|
+| `SSH_PRIVATE_KEY` | contents of `~/.ssh/ldr_actions` (private key) |
+| `SERVER_IP` | your server's IP address |
+| `SERVER_USER` | `ubuntu` |
+
+### Create the workflow
+
+Create this file in your repo (on your local machine):
+
+```bash
+mkdir -p .github/workflows
+```
+
+`.github/workflows/deploy.yml`:
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: ~/ldr/redeploy.sh
+```
+
+Push this file to GitHub. From then on, every push to `main` triggers a deploy automatically. You can watch it run under **Actions** tab on GitHub.
+
+### Manual redeploy (without pushing)
+```bash
+ssh ubuntu@your-server-ip '~/ldr/redeploy.sh'
 ```
 
 ---
 
 ## 11. Logs and monitoring
 
-### App logs
 ```bash
-# Live logs
+# Live app logs
 sudo journalctl -u ldr -f
 
 # Last 100 lines
 sudo journalctl -u ldr -n 100
 
-# Logs since last boot
-sudo journalctl -u ldr -b
-```
-
-### nginx logs
-```bash
+# nginx access/error
 sudo tail -f /var/log/nginx/access.log
 sudo tail -f /var/log/nginx/error.log
-```
 
-### Resource check
-```bash
-# Memory usage
-free -h
-
-# Disk usage
-df -h /
-
-# Service status
+# All services status
 sudo systemctl status ldr mongod nginx
 
-# MongoDB stats
+# Resource usage
+free -h && df -h /
+
+# MongoDB db size
 mongosh --eval "db.stats()" ldr
+```
+
+### Trim logs (run occasionally or add to cron)
+```bash
+sudo journalctl --vacuum-size=200M
 ```
 
 ---
 
 ## 12. MongoDB backup
 
-### Manual backup
 ```bash
-mongodump --db ldr --out /opt/ldr/backup/$(date +%F)
-```
+# Manual
+mongodump --db ldr --gzip --out ~/ldr/backup/$(date +%F)
 
-### Scheduled backup with cron
-```bash
+# Cron: daily 3am backup, keep 7 days
 crontab -e
 ```
 
-Add (runs daily at 3am):
 ```cron
-0 3 * * * mongodump --db ldr --out /opt/ldr/backup/$(date +\%F) --gzip
-# Keep only last 7 days
-0 4 * * * find /opt/ldr/backup -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +
+0 3 * * * mongodump --db ldr --gzip --out ~/ldr/backup/$(date +\%F)
+0 4 * * * find ~/ldr/backup -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +
 ```
 
-### Restore from backup
 ```bash
-mongorestore --db ldr /opt/ldr/backup/2026-04-18/ldr/
+# Restore
+mongorestore --db ldr --gzip ~/ldr/backup/2026-04-18/ldr/
 ```
 
 ---
 
 ## 13. Troubleshooting
 
-**App not starting**
+**Build fails on server (out of memory)**
+```bash
+free -h   # check swap is active
+# Go build uses ~300MB peak — swap handles it if RAM is tight
+```
+
+**Service won't start**
 ```bash
 sudo journalctl -u ldr -n 50
-# Look for: MongoDB connection error, port already in use
+# Common causes: .env missing, port 8080 in use, MongoDB not running
 ```
 
-**MongoDB not connecting**
+**git pull fails**
 ```bash
-sudo systemctl status mongod
-sudo journalctl -u mongod -n 30
-mongosh --eval "db.runCommand({ ping: 1 })"
+ssh -T github-ldr   # test deploy key connection
+# "Permission denied" = key not added to GitHub Deploy Keys
 ```
 
-**WebSocket not working after SSL**
-Make sure the nginx WebSocket block uses `proxy_http_version 1.1` and the `Upgrade` headers — already included in the config above.
-
-**High memory usage**
-```bash
-free -h
-# If MongoDB is eating too much, lower the cache:
-# Edit /etc/mongod.conf → cacheSizeGB: 0.2
-sudo systemctl restart mongod
-```
-
-**Port 8080 already in use**
+**Port already in use**
 ```bash
 sudo lsof -i :8080
 sudo kill -9 <PID>
 sudo systemctl start ldr
 ```
 
-**After server reboot — everything should auto-start**
-
-All three services (`mongod`, `ldr`, `nginx`) are enabled via systemd. After a reboot they come up automatically in the right order (`mongod` → `ldr` → `nginx`).
+**After server reboot**
+All three services auto-start via systemd in order: `mongod` → `ldr` → `nginx`. No manual action needed.
 
 ---
 
-## Optional: MongoDB auth
+## 14. Optional: MongoDB auth
 
-For a shared or public server, add a password to MongoDB:
+For extra security on a shared server:
 
 ```bash
 mongosh
 ```
-
 ```js
 use admin
 db.createUser({
   user: "ldruser",
-  pwd: "yourpassword",
+  pwd: "a-strong-password",
   roles: [{ role: "readWrite", db: "ldr" }]
 })
 exit
 ```
 
-Enable auth in `/etc/mongod.conf`:
-```yaml
-security:
-  authorization: enabled
-```
-
 ```bash
+# Enable auth
+sudo nano /etc/mongod.conf
+# Add:
+# security:
+#   authorization: enabled
+
 sudo systemctl restart mongod
 ```
 
-Update `/opt/ldr/.env`:
+Update `~/ldr/.env`:
 ```env
-MONGO_URI=mongodb://ldruser:yourpassword@localhost:27017/ldr
+MONGO_URI=mongodb://ldruser:a-strong-password@localhost:27017/ldr
 ```
 
 ```bash

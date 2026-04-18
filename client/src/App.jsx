@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { store } from './lib/store'
 import { useWebSocket } from './hooks/useWebSocket'
 import { ThemeProvider } from './hooks/useTheme'
@@ -21,6 +22,14 @@ function RequireRoom({ children }) {
 function AppRoutes() {
   const code = store.get('roomCode')
   const ws = useWebSocket(code)
+  const [online, setOnline] = useState([])
+
+  // Track presence at app level so it stays alive across page navigation
+  useEffect(() => {
+    if (!ws) return
+    const off = ws.on('presence:list', (msg) => setOnline(msg.payload || []))
+    return off
+  }, [ws])
 
   return (
     <Routes>
@@ -29,9 +38,9 @@ function AppRoutes() {
         path="/*"
         element={
           <RequireRoom>
-            <Layout ws={ws}>
+            <Layout ws={ws} online={online}>
               <Routes>
-                <Route path="/dashboard" element={<Dashboard ws={ws} />} />
+                <Route path="/dashboard" element={<Dashboard ws={ws} online={online} />} />
                 <Route path="/journal" element={<Journal />} />
                 <Route path="/watch" element={<WatchParty ws={ws} />} />
                 <Route path="/bucket" element={<BucketList />} />

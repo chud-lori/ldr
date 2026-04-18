@@ -2,8 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
+import { useTheme } from '../hooks/useTheme'
+import { DEFAULT_THEME } from '../lib/themes'
 
 export default function Home() {
+  const { setTheme } = useTheme()
   const [tab, setTab] = useState('create')
   const [name, setName] = useState('')
   const [roomName, setRoomName] = useState('')
@@ -23,6 +26,7 @@ export default function Home() {
       store.set('userName', name)
       store.set('roomCode', data.code)
       store.set('roomData', data.room)
+      setTheme(data.room.theme || DEFAULT_THEME)
       nav('/dashboard')
     } catch (err) {
       setError(err.message)
@@ -42,6 +46,7 @@ export default function Home() {
       store.set('userName', name)
       store.set('roomCode', data.room.code)
       store.set('roomData', data.room)
+      setTheme(data.room.theme || DEFAULT_THEME)
       nav('/dashboard')
     } catch (err) {
       setError(err.message)

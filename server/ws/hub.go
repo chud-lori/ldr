@@ -25,19 +25,29 @@ type RoomMessage struct {
 	Sender *Client
 }
 
+type regRequest struct {
+	client *Client
+	done   chan struct{}
+}
+
+type unregRequest struct {
+	client *Client
+	done   chan struct{}
+}
+
 type Hub struct {
 	rooms      map[string]map[*Client]bool
 	mu         sync.RWMutex
-	register   chan *Client
-	unregister chan *Client
+	register   chan regRequest
+	unregister chan unregRequest
 	broadcast  chan *RoomMessage
 }
 
 func NewHub() *Hub {
 	return &Hub{
 		rooms:      make(map[string]map[*Client]bool),
-		register:   make(chan *Client, 16),
-		unregister: make(chan *Client, 16),
+		register:   make(chan regRequest, 16),
+		unregister: make(chan unregRequest, 16),
 		broadcast:  make(chan *RoomMessage, 128),
 	}
 }
@@ -45,26 +55,28 @@ func NewHub() *Hub {
 func (h *Hub) Run() {
 	for {
 		select {
-		case c := <-h.register:
+		case req := <-h.register:
 			h.mu.Lock()
-			if h.rooms[c.RoomID] == nil {
-				h.rooms[c.RoomID] = make(map[*Client]bool)
+			if h.rooms[req.client.RoomID] == nil {
+				h.rooms[req.client.RoomID] = make(map[*Client]bool)
 			}
-			h.rooms[c.RoomID][c] = true
+			h.rooms[req.client.RoomID][req.client] = true
 			h.mu.Unlock()
+			close(req.done)
 
-		case c := <-h.unregister:
+		case req := <-h.unregister:
 			h.mu.Lock()
-			if room, ok := h.rooms[c.RoomID]; ok {
-				if _, ok := room[c]; ok {
-					delete(room, c)
-					close(c.Send)
+			if room, ok := h.rooms[req.client.RoomID]; ok {
+				if _, ok := room[req.client]; ok {
+					delete(room, req.client)
+					close(req.client.Send)
 					if len(room) == 0 {
-						delete(h.rooms, c.RoomID)
+						delete(h.rooms, req.client.RoomID)
 					}
 				}
 			}
 			h.mu.Unlock()
+			close(req.done)
 
 		case msg := <-h.broadcast:
 			h.mu.RLock()
@@ -82,8 +94,19 @@ func (h *Hub) Run() {
 	}
 }
 
-func (h *Hub) Register(c *Client)   { h.register <- c }
-func (h *Hub) Unregister(c *Client) { h.unregister <- c }
+// Register blocks until the client is fully registered in the hub.
+func (h *Hub) Register(c *Client) {
+	done := make(chan struct{})
+	h.register <- regRequest{client: c, done: done}
+	<-done
+}
+
+// Unregister blocks until the client is removed from the hub.
+func (h *Hub) Unregister(c *Client) {
+	done := make(chan struct{})
+	h.unregister <- unregRequest{client: c, done: done}
+	<-done
+}
 
 func (h *Hub) Broadcast(roomID string, data []byte, sender *Client) {
 	h.broadcast <- &RoomMessage{RoomID: roomID, Data: data, Sender: sender}
@@ -93,6 +116,7 @@ func (h *Hub) BroadcastAll(roomID string, data []byte) {
 	h.broadcast <- &RoomMessage{RoomID: roomID, Data: data}
 }
 
+// RoomClients returns a snapshot of all clients in a room.
 func (h *Hub) RoomClients(roomID string) []*Client {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

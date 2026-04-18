@@ -47,6 +47,7 @@ func main() {
 		r.Get("/rooms/{code}", handlers.GetRoom)
 		r.Post("/rooms/{code}/join", handlers.JoinRoom)
 		r.Patch("/rooms/{code}", handlers.UpdateRoom)
+		r.Patch("/rooms/{code}/me", handlers.UpdateMe)
 		r.Delete("/rooms/{code}", handlers.DeleteRoom)
 		r.Put("/rooms/{code}/meetup", handlers.SetMeetup)
 

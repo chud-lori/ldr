@@ -9,5 +9,6 @@ export const store = {
     localStorage.removeItem('userName')
     localStorage.removeItem('roomCode')
     localStorage.removeItem('roomData')
+    localStorage.removeItem('theme')
   },
 }
