@@ -285,14 +285,16 @@ sudo systemctl status ldr   # Active: running
 
 ## 8. nginx config
 
+Since your server hosts multiple apps on different subdomains, name the file after your subdomain so it doesn't conflict:
+
 ```bash
-sudo nano /etc/nginx/sites-available/ldr
+sudo nano /etc/nginx/sites-available/ldr.lori.my.id
 ```
 
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com;
+    server_name ldr.lori.my.id;
 
     root /home/ubuntu/ldr/client/dist;
     index index.html;
@@ -330,14 +332,14 @@ server {
 ```
 
 ```bash
-sudo ln -sf /etc/nginx/sites-available/ldr /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
+sudo ln -sf /etc/nginx/sites-available/ldr.lori.my.id /etc/nginx/sites-enabled/ldr.lori.my.id
+# Don't remove default if other apps use it
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
 Smoke test:
 ```bash
-curl http://your-server-ip/api/rooms/TEST
+curl http://ldr.lori.my.id/api/rooms/TEST
 # {"message":"room not found"} = working
 ```
 
@@ -347,7 +349,7 @@ curl http://your-server-ip/api/rooms/TEST
 
 Since your domain is on Cloudflare, SSL is handled there — no certbot required.
 
-1. **Point your domain to the server**: In Cloudflare DNS, add an `A` record pointing to your server IP. Make sure the **Proxy status is orange (proxied)**.
+1. **Point your subdomain to the server**: In Cloudflare DNS, add an `A` record for `ldr` pointing to your server IP. Make sure the **Proxy status is orange (proxied)**.
 
 2. **SSL/TLS mode**: Go to **SSL/TLS → Overview** and set mode to **Full** (not Full Strict — since nginx only listens on HTTP 80, Cloudflare encrypts the browser↔CF leg).
 
