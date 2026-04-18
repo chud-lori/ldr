@@ -38,26 +38,48 @@ function Countdown({ target, t }) {
 
 function RoomCode({ code, t }) {
   const [copied, setCopied] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
+  const uid = store.get('userId') || ''
+
   function copy() {
     navigator.clipboard.writeText(code).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
   }
+
+  function copyPersonalLink() {
+    const url = `${location.origin}/?roomCode=${code}&userId=${uid}`
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2000)
+    })
+  }
+
   return (
-    <button
-      onClick={copy}
-      className={`w-full flex items-center justify-between ${t.codeBg} border-2 border-dashed rounded-2xl px-5 py-4 transition-all group`}
-      title="Click to copy"
-    >
-      <div className="text-left">
-        <div className={`text-xs font-medium mb-1 ${t.indicator}`}>Room Code · tap to copy</div>
-        <div className={`font-mono text-3xl font-bold tracking-[0.3em] ${t.codeText}`}>{code}</div>
-      </div>
-      <div className={`text-sm font-medium transition-all ${copied ? 'text-emerald-500' : `${t.indicator} group-hover:${t.accent}`}`}>
-        {copied ? '✓ Copied!' : '📋'}
-      </div>
-    </button>
+    <div className="space-y-2">
+      <button
+        onClick={copy}
+        className={`w-full flex items-center justify-between ${t.codeBg} border-2 border-dashed rounded-2xl px-5 py-4 transition-all group`}
+        title="Tap to copy room code"
+      >
+        <div className="text-left">
+          <div className={`text-xs font-medium mb-1 ${t.indicator}`}>Room Code · tap to copy</div>
+          <div className={`font-mono text-3xl font-bold tracking-[0.3em] ${t.codeText}`}>{code}</div>
+        </div>
+        <div className={`text-sm font-medium transition-all ${copied ? 'text-emerald-500' : `${t.indicator} group-hover:${t.accent}`}`}>
+          {copied ? '✓ Copied!' : '📋'}
+        </div>
+      </button>
+      <button
+        onClick={copyPersonalLink}
+        className="w-full flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-slate-600 py-1.5 transition-colors"
+        title="Copy your personal link to re-join from any device"
+      >
+        <span>🔗</span>
+        <span>{copiedLink ? '✓ Personal link copied!' : 'Copy my personal link (for switching devices)'}</span>
+      </button>
+    </div>
   )
 }
 

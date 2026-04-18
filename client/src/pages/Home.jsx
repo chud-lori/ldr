@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
@@ -14,6 +14,29 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const nav = useNavigate()
+
+  // Handle personal link: /?roomCode=XXXX&userId=YYYY
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const rc = params.get('roomCode')
+    const uid = params.get('userId')
+    if (!rc || !uid) return
+    // Restore to localStorage and go straight to dashboard
+    store.set('roomCode', rc.toUpperCase())
+    store.set('userId', uid)
+    api.get(`/rooms/${rc.toUpperCase()}`).then((data) => {
+      const member = data?.members?.find((m) => m.userId === uid)
+      if (member) {
+        store.set('userName', member.name)
+        store.set('roomData', data)
+        setTheme(data.theme || DEFAULT_THEME)
+        nav('/dashboard', { replace: true })
+      } else {
+        store.set('userId', '')
+        setError('This personal link is no longer valid.')
+      }
+    }).catch(() => setError('Could not connect. Try again.'))
+  }, [])
 
   async function handleCreate(e) {
     e.preventDefault()
