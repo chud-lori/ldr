@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
+import { useToast } from '../components/Toast'
 import { DEFAULT_THEME } from '../lib/themes'
 
 export default function Home() {
   const { setTheme } = useTheme()
+  const toast = useToast()
   const [tab, setTab] = useState('create')
   const [name, setName] = useState('')
   const [roomName, setRoomName] = useState('')
@@ -50,6 +52,7 @@ export default function Home() {
       store.set('roomCode', data.code)
       store.set('roomData', data.room)
       setTheme(data.room.theme || DEFAULT_THEME)
+      toast('Room created! Save your personal link on the dashboard so you can rejoin from any device.', 'info', 7000)
       nav('/dashboard')
     } catch (err) {
       setError(err.message)
@@ -72,6 +75,7 @@ export default function Home() {
       store.set('roomCode', data.room.code)
       store.set('roomData', data.room)
       setTheme(data.room.theme || DEFAULT_THEME)
+      toast(`Welcome back! You're in room ${data.room.code} 💑`, 'success')
       nav('/dashboard')
     } catch (err) {
       setError(err.message)

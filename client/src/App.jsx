@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { store } from './lib/store'
 import { useWebSocket } from './hooks/useWebSocket'
 import { ThemeProvider, useTheme } from './hooks/useTheme'
+import { ToastProvider, useToast } from './components/Toast'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
@@ -25,21 +26,38 @@ function AppRoutes() {
   const ws = useWebSocket(code)
   const [online, setOnline] = useState([])
   const { setTheme } = useTheme()
+  const toast = useToast()
+  const uid = store.get('userId')
 
   useEffect(() => {
     if (!ws) return
-    const off = ws.on('presence:list', (msg) => setOnline(msg.payload || []))
+    const off = ws.on('presence:list', (msg) => {
+      const next = msg.payload || []
+      setOnline((prev) => {
+        // Notify when partner comes online (wasn't in prev list)
+        const prevIds = new Set(prev.map((u) => u.userId))
+        next.forEach((u) => {
+          if (u.userId !== uid && !prevIds.has(u.userId)) {
+            toast(`${u.name} is now online 💗`, 'success')
+          }
+        })
+        return next
+      })
+    })
     return off
-  }, [ws])
+  }, [ws, uid, toast])
 
   // Sync theme changes from partner in real time
   useEffect(() => {
     if (!ws) return
     const off = ws.on('room:theme', (msg) => {
-      if (msg.payload?.theme) setTheme(msg.payload.theme)
+      if (msg.payload?.theme) {
+        setTheme(msg.payload.theme)
+        toast('Partner updated the room theme 🎨', 'info')
+      }
     })
     return off
-  }, [ws, setTheme])
+  }, [ws, setTheme, toast])
 
   return (
     <Routes>
@@ -70,9 +88,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <ThemeProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </ToastProvider>
     </ThemeProvider>
   )
 }
