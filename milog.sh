@@ -411,6 +411,29 @@ mode_grep() {
 }
 
 # ==============================================================================
+# MODE: errors
+# ==============================================================================
+mode_errors() {
+    echo -e "${D}Watching 4xx/5xx across all apps... (Ctrl+C)${NC}\n"
+    local pids=() colors=("$B" "$C" "$G" "$M" "$Y" "$R") i=0
+    for name in "${LOGS[@]}"; do
+        local file="$LOG_DIR/$name.access.log"
+        local col="${colors[$i]}" label
+        label=$(printf "%-8s" "$name")
+        if [[ -f "$file" ]]; then
+            tail -f "$file" 2>/dev/null | \
+                grep --line-buffered ' [45][0-9][0-9] ' | \
+                awk -v col="$col" -v lbl="$label" -v nc="$NC" \
+                    '{print col"["lbl"]"nc" "$0; fflush()}' &
+            pids+=($!)
+        fi
+        (( i++ )) || true
+    done
+    trap 'kill "${pids[@]}" 2>/dev/null; exit' INT TERM
+    wait
+}
+
+# ==============================================================================
 # COLOR PREFIX — background-process tail, one per app with hardcoded color
 # ==============================================================================
 color_prefix() {
@@ -485,20 +508,8 @@ case "${1:-}" in
     top)      mode_top "${2:-10}" ;;
     stats)    mode_stats "${2:-}" ;;
     grep)     mode_grep "${2:-}" "${3:-.}" ;;
-    errors)
-        echo -e "${D}Watching 4xx/5xx across all apps... (Ctrl+C)${NC}\n"
-        local pids=() colors=("$B" "$C" "$G" "$M" "$Y" "$R") i=0
-        for name in "${LOGS[@]}"; do
-            local file="$LOG_DIR/$name.access.log"
-            local col="${colors[$i]}" label; label=$(printf "%-8s" "$name")
-            [[ -f "$file" ]] && tail -f "$file" 2>/dev/null | \
-                grep --line-buffered ' [45][0-9][0-9] ' | \
-                awk -v col="$col" -v lbl="$label" -v nc="$NC" \
-                    '{print col"["lbl"]"nc" "$0; fflush()}' &
-            pids+=($!); (( i++ )) || true
-        done
-        trap 'kill "${pids[@]}" 2>/dev/null; exit' INT TERM; wait ;;
-    probes)   tail -f "${FILES[@]}" | grep --line-buffered -Ei 'SSH-2\.0|\x16\x03|masscan|zgrab|nmap|curl|wget' ;;
+    errors)   mode_errors ;;
+    probes)   tail -f "${FILES[@]}" | grep --line-buffered -Ei 'SSH-2\.0|\\x16\\x03|masscan|zgrab|nmap|nuclei|sqlmap|gobuster|nikto|curl|wget' ;;
     -h|--help|help) show_help ;;
     ""|logs)  tail -f "${FILES[@]}" | color_prefix ;;
     *)
