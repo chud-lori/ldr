@@ -76,7 +76,7 @@ export default function Home() {
       store.set('roomCode', data.room.code)
       store.set('roomData', data.room)
       setTheme(data.room.theme || DEFAULT_THEME)
-      toast(isRejoin ? `Welcome back! You're in room ${data.room.code} 💑` : `You joined room ${data.room.code}! 💑`, 'success')
+      toast(isRejoin ? `Welcome back! You're in room ${data.room.code} 👩‍❤️‍👨` : `You joined room ${data.room.code}! 👩‍❤️‍👨`, 'success')
       nav('/dashboard')
     } catch (err) {
       setError(err.message)
@@ -89,7 +89,7 @@ export default function Home() {
     <div className="min-h-screen bg-rose-50 flex flex-col items-center justify-center p-4 gap-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
         <div className="text-center mb-6">
-          <div className="text-5xl mb-2">💑</div>
+          <div className="text-5xl mb-2">👩‍❤️‍👨</div>
           <h1 className="text-2xl font-bold text-gray-800">LDR</h1>
           <p className="text-gray-400 text-sm mt-1">Stay close, no matter the distance</p>
         </div>

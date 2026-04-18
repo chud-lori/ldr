@@ -15,7 +15,7 @@
   <circle cx="1100" cy="80" r="80" fill="#fb7185" opacity="0.15"/>
 
   <!-- Heart emoji -->
-  <text x="600" y="230" font-size="96" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">💑</text>
+  <text x="600" y="230" font-size="96" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">👩‍❤️‍👨</text>
 
   <!-- App name -->
   <text x="600" y="320" font-size="96" font-weight="800" text-anchor="middle"

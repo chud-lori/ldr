@@ -61,7 +61,7 @@ function StatsCard({ code, roomData, t }) {
         {[
           { val: stats.streak, label: 'day streak', emoji: '🔥' },
           { val: stats.journalDays, label: 'journal days', emoji: '📓' },
-          { val: stats.roomDays, label: 'days together', emoji: '💑' },
+          { val: stats.roomDays, label: 'days together', emoji: '👩‍❤️‍👨' },
         ].map(({ val, label, emoji }) => (
           <div key={label} className={`rounded-xl py-3 px-2 ${t.codeBg}`}>
             <div className="text-xl mb-0.5">{emoji}</div>
