@@ -17,6 +17,7 @@ import (
 
 func GetTrivia(w http.ResponseWriter, r *http.Request) {
 	code := strings.ToUpper(chi.URLParam(r, "code"))
+	uid := userID(r)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -27,6 +28,13 @@ func GetTrivia(w http.ResponseWriter, r *http.Request) {
 	)
 	var questions []models.TriviaQuestion
 	cursor.All(ctx, &questions)
+
+	// Mask the correct answer for questions the requester didn't create.
+	for i := range questions {
+		if questions[i].UserID != uid {
+			questions[i].Answer = ""
+		}
+	}
 
 	respond(w, http.StatusOK, questions)
 }
@@ -89,14 +97,25 @@ func AnswerTrivia(w http.ResponseWriter, r *http.Request) {
 
 	correct := strings.EqualFold(strings.TrimSpace(body.Answer), strings.TrimSpace(q.Answer))
 
-	attempt := models.TriviaAttempt{
-		UserID:    uid,
-		Name:      body.Name,
-		Answer:    body.Answer,
-		Correct:   correct,
-		CreatedAt: time.Now(),
+	var correctAnswer string
+	if !correct {
+		correctAnswer = q.Answer
 	}
 
+	attempt := models.TriviaAttempt{
+		UserID:        uid,
+		Name:          body.Name,
+		Answer:        body.Answer,
+		Correct:       correct,
+		CorrectAnswer: correctAnswer,
+		CreatedAt:     time.Now(),
+	}
+
+	// Remove any previous attempt by this user so they can re-answer.
+	db.Col("trivia").UpdateOne(ctx,
+		bson.M{"_id": qid},
+		bson.M{"$pull": bson.M{"attempts": bson.M{"userId": uid}}},
+	)
 	db.Col("trivia").UpdateOne(ctx,
 		bson.M{"_id": qid},
 		bson.M{"$push": bson.M{"attempts": attempt}},

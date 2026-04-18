@@ -23,6 +23,8 @@ export default function WatchParty({ ws }) {
   const playerRef = useRef(null)
   const playerInstanceRef = useRef(null)
   const isSyncingRef = useRef(false)
+  const wsRef = useRef(ws)
+  useEffect(() => { wsRef.current = ws }, [ws])
 
   const [videoUrl, setVideoUrl] = useState('')
   const [currentVideoId, setCurrentVideoId] = useState(null)
@@ -50,13 +52,16 @@ export default function WatchParty({ ws }) {
         videoId: currentVideoId,
         playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
         events: {
+          onReady: () => {
+            wsRef.current?.send('watch:request-sync', {})
+          },
           onStateChange: (e) => {
             if (isSyncingRef.current) return
             const player = playerInstanceRef.current
             if (e.data === window.YT.PlayerState.PLAYING) {
-              ws?.send('watch:play', { time: player.getCurrentTime() })
+              wsRef.current?.send('watch:play', { time: player.getCurrentTime() })
             } else if (e.data === window.YT.PlayerState.PAUSED) {
-              ws?.send('watch:pause', { time: player.getCurrentTime() })
+              wsRef.current?.send('watch:pause', { time: player.getCurrentTime() })
             }
           },
         },
@@ -91,6 +96,22 @@ export default function WatchParty({ ws }) {
         setTimeout(() => { isSyncingRef.current = false }, 500)
       }),
       ws.on('watch:video', (msg) => setCurrentVideoId(msg.payload.videoId)),
+      ws.on('watch:request-sync', () => {
+        const p = playerInstanceRef.current
+        if (!p?.getCurrentTime) return
+        const playing = p.getPlayerState() === window.YT?.PlayerState?.PLAYING
+        ws.send('watch:sync', { time: p.getCurrentTime(), playing })
+      }),
+      ws.on('watch:sync', (msg) => {
+        isSyncingRef.current = true
+        const p = playerInstanceRef.current
+        if (p) {
+          p.seekTo(msg.payload.time, true)
+          if (msg.payload.playing) p.playVideo()
+          else p.pauseVideo()
+        }
+        setTimeout(() => { isSyncingRef.current = false }, 500)
+      }),
       ws.on('chat:send', (msg) => setMessages((prev) => [...prev, {
         userId: msg.userId, name: msg.name,
         text: msg.payload.text, createdAt: Date.now(),

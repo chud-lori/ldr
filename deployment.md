@@ -1,9 +1,9 @@
 # Deployment Guide
 
-**Target:** Ubuntu VPS — 2 vCPU / 2GB RAM / 2GB Swap  
-**Stack:** Go binary + MongoDB + nginx + systemd  
-**Deploy flow:** push to GitHub → Actions SSHes in → server pulls & rebuilds  
-**App location:** `~/ldr` (consistent with dolanan, envback, ethok, Sinepil-Stream)
+**Target:** Ubuntu VPS — 2 vCPU / 2GB RAM / 2GB Swap
+**Stack:** Go binary + MongoDB + nginx + systemd
+**Deploy flow:** push to GitHub → Actions SSHes in → server pulls & rebuilds
+**App location:** `~/ldr`
 
 ---
 

@@ -18,9 +18,10 @@ type TriviaQuestion struct {
 }
 
 type TriviaAttempt struct {
-	UserID    string    `bson:"userId" json:"userId"`
-	Name      string    `bson:"name" json:"name"`
-	Answer    string    `bson:"answer" json:"answer"`
-	Correct   bool      `bson:"correct" json:"correct"`
-	CreatedAt time.Time `bson:"createdAt" json:"createdAt"`
+	UserID        string    `bson:"userId" json:"userId"`
+	Name          string    `bson:"name" json:"name"`
+	Answer        string    `bson:"answer" json:"answer"`
+	Correct       bool      `bson:"correct" json:"correct"`
+	CorrectAnswer string    `bson:"correctAnswer,omitempty" json:"correctAnswer,omitempty"`
+	CreatedAt     time.Time `bson:"createdAt" json:"createdAt"`
 }
