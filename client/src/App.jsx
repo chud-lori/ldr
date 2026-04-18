@@ -32,7 +32,7 @@ function AppRoutes() {
   useEffect(() => {
     if (!ws) return
     const off = ws.on('presence:list', (msg) => {
-      const next = msg.payload || []
+      const next = Array.isArray(msg.payload) ? msg.payload : []
       setOnline((prev) => {
         // Notify when partner comes online (wasn't in prev list)
         const prevIds = new Set(prev.map((u) => u.userId))

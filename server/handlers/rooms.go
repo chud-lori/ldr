@@ -100,8 +100,12 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var room models.Room
-	if err := db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&room); err == mongo.ErrNoDocuments {
-		http.Error(w, "room not found", http.StatusNotFound)
+	if err := db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&room); err != nil {
+		if err == mongo.ErrNoDocuments {
+			http.Error(w, "room not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "db error", http.StatusInternalServerError)
+		}
 		return
 	}
 

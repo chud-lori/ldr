@@ -39,7 +39,7 @@ function StatsCard({ code, roomData, t }) {
 
   useEffect(() => {
     api.get(`/rooms/${code}/journal/all`).then((data) => {
-      const all = data || []
+      const all = Array.isArray(data) ? data : []
       const streak = calcStreak(all)
       const journalDays = all.filter((d) => d.myEntry && d.partnerEntry).length
       const roomDays = roomData?.createdAt
