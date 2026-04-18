@@ -86,7 +86,7 @@ export default function Layout({ children, ws, online = [] }) {
   return (
     <div className={`min-h-screen ${t.appBg} flex flex-col`}>
       <header className={`bg-white border-b ${t.headerBg} px-4 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm`}>
-        <span className={`font-bold ${t.accent} text-lg`}>💑 LDR</span>
+        <span className={`font-bold ${t.accent} text-lg tracking-wide`}>LDR</span>
 
         <div className="flex items-center gap-2">
           {/* Partner online indicator */}

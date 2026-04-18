@@ -90,7 +90,7 @@ export default function Home() {
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
         <div className="text-center mb-6">
           <div className="text-5xl mb-2">💑</div>
-          <h1 className="text-2xl font-bold text-gray-800">LDR Together</h1>
+          <h1 className="text-2xl font-bold text-gray-800">LDR</h1>
           <p className="text-gray-400 text-sm mt-1">Stay close, no matter the distance</p>
         </div>
 
