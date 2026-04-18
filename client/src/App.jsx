@@ -11,6 +11,7 @@ import WatchParty from './pages/WatchParty'
 import BucketList from './pages/BucketList'
 import Trivia from './pages/Trivia'
 import Puzzle from './pages/Puzzle'
+import Guide from './pages/Guide'
 
 function RequireRoom({ children }) {
   const code = store.get('roomCode')
@@ -55,6 +56,7 @@ function AppRoutes() {
                 <Route path="/bucket" element={<BucketList />} />
                 <Route path="/trivia" element={<Trivia ws={ws} />} />
                 <Route path="/puzzle" element={<Puzzle ws={ws} />} />
+                <Route path="/guide" element={<Guide />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </Layout>

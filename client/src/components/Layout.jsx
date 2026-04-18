@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import { api } from '../lib/api'
@@ -75,6 +75,7 @@ function UserSettings({ onClose, t }) {
 export default function Layout({ children, ws, online = [] }) {
   const { pathname } = useLocation()
   const { t } = useTheme()
+  const nav = useNavigate()
   const name = store.get('userName')
   const uid = store.get('userId')
   const [showUserSettings, setShowUserSettings] = useState(false)
@@ -87,7 +88,7 @@ export default function Layout({ children, ws, online = [] }) {
       <header className={`bg-white border-b ${t.headerBg} px-4 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm`}>
         <span className={`font-bold ${t.accent} text-lg`}>💑 LDR</span>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* Partner online indicator */}
           {otherOnline.length > 0 && (
             <span className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full font-medium">
@@ -95,6 +96,13 @@ export default function Layout({ children, ws, online = [] }) {
               {otherOnline.map(u => u.name).join(', ')} online
             </span>
           )}
+
+          {/* Guide */}
+          <button
+            onClick={() => nav('/guide')}
+            className="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 text-sm font-bold transition-colors"
+            title="How to use"
+          >?</button>
 
           {/* Your name + settings */}
           <button

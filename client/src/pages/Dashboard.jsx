@@ -4,6 +4,47 @@ import { store } from '../lib/store'
 import { api } from '../lib/api'
 import { useTheme } from '../hooks/useTheme'
 
+function WelcomeBanner({ code, t }) {
+  const [visible, setVisible] = useState(() => !store.get('seenWelcome'))
+  const [copied, setCopied] = useState(false)
+  const uid = store.get('userId') || ''
+  const personalLink = `${location.origin}/?roomCode=${code}&userId=${uid}`
+
+  function dismiss() {
+    store.set('seenWelcome', '1')
+    setVisible(false)
+  }
+
+  function copy() {
+    navigator.clipboard.writeText(personalLink).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  if (!visible) return null
+
+  return (
+    <div className={`rounded-2xl p-4 border-2 ${t.codeBg} relative`}>
+      <button onClick={dismiss} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
+      <div className="pr-6">
+        <p className={`font-bold ${t.accent} mb-1`}>👋 Welcome! One important thing first.</p>
+        <p className="text-sm text-slate-600 mb-3 leading-relaxed">
+          Your session is stored in this browser only. Save your <strong>personal link</strong> now so you can
+          get back in from any device — phone, laptop, or a new browser.
+        </p>
+        <button onClick={copy} className={`w-full ${t.btn} rounded-xl py-2.5 text-sm font-semibold mb-2`}>
+          {copied ? '✓ Copied! Now save it somewhere safe.' : '🔗 Copy my personal link'}
+        </button>
+        <div className="flex items-center justify-between">
+          <Link to="/guide" className={`text-xs ${t.accent} underline underline-offset-2`}>Learn how everything works →</Link>
+          <button onClick={dismiss} className="text-xs text-slate-400 hover:text-slate-500">Dismiss</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Countdown({ target, t }) {
   const [diff, setDiff] = useState(null)
 
@@ -205,6 +246,8 @@ export default function Dashboard({ ws, online = [] }) {
 
   return (
     <div className="space-y-4">
+      <WelcomeBanner code={code} t={t} />
+
       {/* Room card */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-4">
         <div className="flex items-center justify-between">
