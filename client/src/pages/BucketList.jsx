@@ -40,7 +40,7 @@ export default function BucketList() {
 
   async function load() {
     const data = await api.get(`/rooms/${code}/bucketlist`)
-    setItems(data || [])
+    setItems(Array.isArray(data) ? data : [])
   }
 
   useEffect(() => { load() }, [])

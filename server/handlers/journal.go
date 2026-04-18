@@ -92,7 +92,7 @@ func GetJournalAll(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var pairs []DatePair
+	pairs := make([]DatePair, 0, len(dateMap))
 	for _, p := range dateMap {
 		// Reveal partner only when both submitted
 		if p.MyEntry == nil {

@@ -95,7 +95,7 @@ export default function Trivia({ ws }) {
 
   async function load() {
     const data = await api.get(`/rooms/${code}/trivia`)
-    setQuestions(data || [])
+    setQuestions(Array.isArray(data) ? data : [])
   }
 
   useEffect(() => { load() }, [])

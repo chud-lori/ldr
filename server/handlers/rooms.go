@@ -95,6 +95,10 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 		UserName string `json:"userName"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
+	if strings.TrimSpace(body.UserName) == "" {
+		http.Error(w, "name required", http.StatusBadRequest)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -175,8 +179,12 @@ func UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var room models.Room
-	if err := db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&room); err == mongo.ErrNoDocuments {
-		http.Error(w, "room not found", http.StatusNotFound)
+	if err := db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&room); err != nil {
+		if err == mongo.ErrNoDocuments {
+			http.Error(w, "room not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "db error", http.StatusInternalServerError)
+		}
 		return
 	}
 	isMember := false
@@ -216,8 +224,12 @@ func DeleteRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Only a member of the room can delete it
 	var room models.Room
-	if err := db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&room); err == mongo.ErrNoDocuments {
-		http.Error(w, "room not found", http.StatusNotFound)
+	if err := db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&room); err != nil {
+		if err == mongo.ErrNoDocuments {
+			http.Error(w, "room not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "db error", http.StatusInternalServerError)
+		}
 		return
 	}
 	isMember := false
