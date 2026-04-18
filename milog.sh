@@ -434,6 +434,131 @@ mode_errors() {
 }
 
 # ==============================================================================
+# MODE: probes — scanner / bot traffic by user-agent + protocol-level probes
+# Wide UA database covering security tools, mass scanners, SEO bots,
+# generic HTTP libs, AI crawlers, and non-HTTP protocol smuggling attempts.
+# ==============================================================================
+mode_probes() {
+    echo -e "${D}Watching scanner/bot traffic across all apps... (Ctrl+C)${NC}\n"
+    local pids=() colors=("$B" "$C" "$G" "$M" "$Y" "$R") i=0
+
+    # Protocol-level: SSH banner, TLS ClientHello sent to plain HTTP (nginx logs
+    # the bytes as literal \xNN — double backslash so grep sees one).
+    local pat='SSH-2\.0|\\x16\\x03|\\x00\\x00'
+    # Security / pentest tools
+    pat+='|masscan|zmap|zgrab|nmap|nikto|sqlmap|nuclei|gobuster|dirbuster'
+    pat+='|dirb|ffuf|wfuzz|feroxbuster|nessus|openvas|acunetix|wpscan|joomscan'
+    pat+='|burp|zaproxy|owasp|metasploit|meterpreter|w3af|webshag'
+    # Mass internet scanners / research crawlers
+    pat+='|l9explore|l9tcpid|l9retrieve|leakix'
+    pat+='|libredtail|httpx|naabu|katana|subfinder'
+    pat+='|expanseinc|censysinspect|shodan|stretchoid|internet-measurement'
+    pat+='|greenbone|qualys|rapid7|detectify|intruder\.io|netcraftsurvey'
+    pat+='|netsystemsresearch|paloalto|projectdiscovery|odin\.ai|onyphe'
+    # SEO / advertising crawlers (often unwanted)
+    pat+='|ahrefsbot|semrushbot|dotbot|mj12bot|blexbot|petalbot|serpstat'
+    pat+='|dataforseobot|bytespider|mauibot|megaindex|seznambot'
+    # AI crawlers
+    pat+='|claudebot|gptbot|ccbot|anthropic-ai|perplexitybot|youbot'
+    pat+='|amazonbot|applebot-extended|cohere-ai|diffbot'
+    # Generic HTTP libraries (legit use exists but often scripted)
+    pat+='|python-requests|python-urllib|aiohttp|go-http-client|okhttp'
+    pat+='|libwww-perl|java/1\.|apache-httpclient|restsharp|http_request2'
+    pat+='|guzzlehttp|node-fetch|axios|got\(|scrapy|mechanize'
+    # Headless / automation
+    pat+='|headlesschrome|phantomjs|puppeteer|playwright|selenium'
+    # Generic bot / crawler hints in UA
+    pat+='|[Ss]canner|[Bb]ot/|[Cc]rawler|[Ss]pider|probe-|fuzzer|harvester'
+    # Known payloads
+    pat+='|hello,\s*world'
+
+    for name in "${LOGS[@]}"; do
+        local file="$LOG_DIR/$name.access.log"
+        local col="${colors[$i]}" label
+        label=$(printf "%-8s" "$name")
+        if [[ -f "$file" ]]; then
+            tail -f "$file" 2>/dev/null | \
+                grep --line-buffered -Ei "$pat" | \
+                awk -v col="$col" -v lbl="$label" -v nc="$NC" \
+                    '{print col"["lbl"]"nc" "$0; fflush()}' &
+            pids+=($!)
+        fi
+        (( i++ )) || true
+    done
+    trap 'kill "${pids[@]}" 2>/dev/null; exit' INT TERM
+    wait
+}
+
+# ==============================================================================
+# MODE: suspects — heuristic IP ranking (behavioral, not just UA)
+# Scores each IP in the last N log lines across all apps, using:
+#   4xx hits      × 2   (probing non-existent paths)
+#   5xx hits      × 3   (causing errors)
+#   missing UA    × 1   (scripted requests often send "-")
+#   scanner UA    + 10  (flat bonus if UA matches known tool)
+#   unique paths  / 5   (scanning behavior — many endpoints from one IP)
+# Prints top N with flags explaining why.
+# ==============================================================================
+mode_suspects() {
+    local topn="${1:-20}"
+    local window="${2:-2000}"
+
+    echo -e "\n${W}── MiLog: Suspicious IPs (last ${window} lines/app, top ${topn}) ──${NC}\n"
+    printf "%-6s  %-18s  %6s  %5s  %5s  %6s  %s\n" \
+        "SCORE" "IP" "REQ" "4XX" "5XX" "PATHS" "FLAGS"
+    printf "%-6s  %-18s  %6s  %5s  %5s  %6s  %s\n" \
+        "─────" "─────────────────" "──────" "─────" "─────" "──────" "──────────"
+
+    local tmp; tmp=$(mktemp)
+    for name in "${LOGS[@]}"; do
+        local file="$LOG_DIR/$name.access.log"
+        [[ -f "$file" ]] && tail -n "$window" "$file" >> "$tmp"
+    done
+
+    awk '
+    BEGIN { FS = "\"" }
+    NF >= 6 {
+        split($1, a, " ");  ip = a[1]
+        gsub(/^ +| +$/, "", $3);  split($3, s, " ");  status = s[1]
+        req = $2;  ua = $6
+
+        reqs[ip]++
+        if (status ~ /^4/) e4[ip]++
+        if (status ~ /^5/) e5[ip]++
+        if (ua == "-" || ua == "") no_ua[ip]++
+
+        key = ip "|" req
+        if (!(key in seen)) { seen[key] = 1;  paths[ip]++ }
+
+        ual = tolower(ua)
+        if (ual ~ /masscan|zgrab|nmap|nikto|sqlmap|nuclei|gobuster|dirbuster|ffuf|wfuzz|feroxbuster|libredtail|l9explore|shodan|censysinspect|expanseinc|httpx|python-requests|go-http-client|okhttp|libwww-perl|scanner|fuzzer|leakix/) {
+            scanner_ua[ip] = 1
+        }
+    }
+    END {
+        for (ip in reqs) {
+            sc = e4[ip]*2 + e5[ip]*3 + no_ua[ip] + (scanner_ua[ip]?10:0) + int(paths[ip]/5)
+            if (sc < 3) continue
+            f = ""
+            if (scanner_ua[ip])    f = f " SCANNER"
+            if (no_ua[ip] > 0)     f = f " NO-UA"
+            if (e4[ip] >= 20)      f = f " HIGH-4XX"
+            if (e5[ip] >= 5)       f = f " HIGH-5XX"
+            if (paths[ip] >= 10)   f = f " MANY-PATHS"
+            sub(/^ /, "", f)
+            printf "%d\t%s\t%d\t%d\t%d\t%d\t%s\n", sc, ip, reqs[ip], e4[ip]+0, e5[ip]+0, paths[ip]+0, f
+        }
+    }' "$tmp" | sort -t$'\t' -k1,1 -rn | head -n "$topn" | \
+    awk -F'\t' -v R="$R" -v Y="$Y" -v G="$G" -v NC="$NC" '{
+        c = G;  if ($1+0 >= 10) c = Y;  if ($1+0 >= 30) c = R
+        printf "%s%-6s%s  %-18s  %6s  %5s  %5s  %6s  %s\n", c, $1, NC, $2, $3, $4, $5, $6, $7
+    }'
+
+    rm -f "$tmp"
+    echo ""
+}
+
+# ==============================================================================
 # MODE: exploits — L7 attack payloads + scanner fingerprints
 # Catches path traversal, LFI, RCE, SQLi, XSS, Log4Shell, dotfile/secret probes,
 # infra-API probes (Docker/actuator/etc), CMS admin scans, and known scanner UAs.
@@ -525,6 +650,7 @@ ${W}ANALYSIS${NC}
   ${C}health${NC}             2xx/3xx/4xx/5xx per app
   ${C}top [N]${NC}            top N source IPs  ${D}(default: 10)${NC}
   ${C}stats <app>${NC}        hourly request histogram
+  ${C}suspects [N] [W]${NC}   heuristic bot ranking ${D}(top N=20, window=2000 lines/app)${NC}
 
 ${W}TAILING${NC}
   ${C}(none) / logs${NC}      tail all logs, color prefixed  ${D}<- default${NC}
@@ -559,7 +685,8 @@ case "${1:-}" in
     grep)     mode_grep "${2:-}" "${3:-.}" ;;
     errors)   mode_errors ;;
     exploits) mode_exploits ;;
-    probes)   tail -f "${FILES[@]}" | grep --line-buffered -Ei 'SSH-2\.0|\\x16\\x03|masscan|zgrab|nmap|nuclei|sqlmap|gobuster|nikto|curl|wget' ;;
+    probes)   mode_probes ;;
+    suspects) mode_suspects "${2:-20}" "${3:-2000}" ;;
     -h|--help|help) show_help ;;
     ""|logs)  tail -f "${FILES[@]}" | color_prefix ;;
     *)
