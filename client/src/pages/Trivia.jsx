@@ -51,7 +51,7 @@ function QuestionCard({ q, uid, onAnswer, onDelete, t }) {
         </div>
       )}
 
-      {!isMine && !(myAttempt?.correct || result?.correct) && !result && (
+      {!isMine && !myAttempt && !result && (
         <form onSubmit={submit} className="flex gap-2 mt-3">
           <input
             className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-slate-400"

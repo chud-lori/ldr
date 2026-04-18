@@ -11,9 +11,12 @@ import (
 var Client *mongo.Client
 var DB *mongo.Database
 
-func Connect(ctx context.Context, uri string) error {
+func Connect(ctx context.Context, uri, dbName string) error {
 	if uri == "" {
 		uri = "mongodb://localhost:27017"
+	}
+	if dbName == "" {
+		dbName = "ldr"
 	}
 	client, err := mongo.Connect(options.Client().ApplyURI(uri))
 	if err != nil {
@@ -23,8 +26,8 @@ func Connect(ctx context.Context, uri string) error {
 		return err
 	}
 	Client = client
-	DB = client.Database("ldr")
-	log.Println("MongoDB connected")
+	DB = client.Database(dbName)
+	log.Printf("MongoDB connected (db: %s)", dbName)
 	return nil
 }
 

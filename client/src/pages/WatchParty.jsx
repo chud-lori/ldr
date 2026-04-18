@@ -28,6 +28,7 @@ export default function WatchParty({ ws }) {
 
   const [videoUrl, setVideoUrl] = useState('')
   const [currentVideoId, setCurrentVideoId] = useState(null)
+  const [pendingVideoId, setPendingVideoId] = useState(null)
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const chatBottomRef = useRef(null)
@@ -95,7 +96,14 @@ export default function WatchParty({ ws }) {
         if (p) { p.seekTo(msg.payload.time, true); p.pauseVideo() }
         setTimeout(() => { isSyncingRef.current = false }, 500)
       }),
-      ws.on('watch:video', (msg) => setCurrentVideoId(msg.payload.videoId)),
+      ws.on('watch:video', (msg) => {
+        // Don't auto-switch — let the user decide if already watching something
+        if (currentVideoId && currentVideoId !== msg.payload.videoId) {
+          setPendingVideoId(msg.payload.videoId)
+        } else {
+          setCurrentVideoId(msg.payload.videoId)
+        }
+      }),
       ws.on('watch:request-sync', () => {
         const p = playerInstanceRef.current
         if (!p?.getCurrentTime) return
@@ -157,6 +165,21 @@ export default function WatchParty({ ws }) {
           </button>
         </div>
       </div>
+
+      {pendingVideoId && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <span className="text-lg shrink-0">🎬</span>
+          <p className="flex-1 text-sm text-amber-800 font-medium">Partner wants to change the video</p>
+          <button
+            onClick={() => { setCurrentVideoId(pendingVideoId); setPendingVideoId(null) }}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600"
+          >Switch</button>
+          <button
+            onClick={() => setPendingVideoId(null)}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-amber-700 hover:bg-amber-50"
+          >Stay</button>
+        </div>
+      )}
 
       {currentVideoId ? (
         <div className="bg-black rounded-2xl overflow-hidden aspect-video shadow-sm">

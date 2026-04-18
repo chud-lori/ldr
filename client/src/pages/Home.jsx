@@ -70,12 +70,13 @@ export default function Home() {
       const existingUid = store.get('userId') || ''
       const joinUrl = `/rooms/${code.trim().toUpperCase()}/join${existingUid ? `?userId=${existingUid}` : ''}`
       const data = await api.post(joinUrl, { userName: name })
+      const isRejoin = existingUid && data.userId === existingUid
       store.set('userId', data.userId)
       store.set('userName', name)
       store.set('roomCode', data.room.code)
       store.set('roomData', data.room)
       setTheme(data.room.theme || DEFAULT_THEME)
-      toast(`Welcome back! You're in room ${data.room.code} 💑`, 'success')
+      toast(isRejoin ? `Welcome back! You're in room ${data.room.code} 💑` : `You joined room ${data.room.code}! 💑`, 'success')
       nav('/dashboard')
     } catch (err) {
       setError(err.message)

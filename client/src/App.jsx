@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { store } from './lib/store'
 import { useWebSocket } from './hooks/useWebSocket'
 import { ThemeProvider, useTheme } from './hooks/useTheme'
@@ -28,21 +28,21 @@ function AppRoutes() {
   const { setTheme } = useTheme()
   const toast = useToast()
   const uid = store.get('userId')
+  const onlineRef = useRef([])
 
   useEffect(() => {
     if (!ws) return
     const off = ws.on('presence:list', (msg) => {
       const next = Array.isArray(msg.payload) ? msg.payload : []
-      setOnline((prev) => {
-        // Notify when partner comes online (wasn't in prev list)
-        const prevIds = new Set(prev.map((u) => u.userId))
-        next.forEach((u) => {
-          if (u.userId !== uid && !prevIds.has(u.userId)) {
-            toast(`${u.name} is now online 💗`, 'success')
-          }
-        })
-        return next
+      // Compare against ref (not state) to avoid side-effects inside state updater
+      const prevIds = new Set(onlineRef.current.map((u) => u.userId))
+      next.forEach((u) => {
+        if (u.userId !== uid && !prevIds.has(u.userId)) {
+          toast(`${u.name} is now online 💗`, 'success')
+        }
       })
+      onlineRef.current = next
+      setOnline(next)
     })
     return off
   }, [ws, uid, toast])

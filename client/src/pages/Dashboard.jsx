@@ -114,22 +114,13 @@ function WelcomeBanner({ code, t }) {
   if (!visible) return null
 
   return (
-    <div className={`rounded-2xl p-4 border-2 ${t.codeBg} relative`}>
-      <button onClick={dismiss} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
-      <div className="pr-6">
-        <p className={`font-bold ${t.accent} mb-1`}>👋 Welcome! One important thing first.</p>
-        <p className="text-sm text-slate-600 mb-3 leading-relaxed">
-          Your session is stored in this browser only. Save your <strong>personal link</strong> now so you can
-          get back in from any device — phone, laptop, or a new browser.
-        </p>
-        <button onClick={copy} className={`w-full ${t.btn} rounded-xl py-2.5 text-sm font-semibold mb-2`}>
-          {copied ? '✓ Copied! Now save it somewhere safe.' : '🔗 Copy my personal link'}
-        </button>
-        <div className="flex items-center justify-between">
-          <Link to="/guide" className={`text-xs ${t.accent} underline underline-offset-2`}>Learn how everything works →</Link>
-          <button onClick={dismiss} className="text-xs text-slate-400 hover:text-slate-500">Dismiss</button>
-        </div>
-      </div>
+    <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${t.codeBg} text-xs`}>
+      <span className="shrink-0">🔗</span>
+      <span className="text-slate-600 flex-1 leading-snug">Save your <strong>personal link</strong> to rejoin from any device.</span>
+      <button onClick={copy} className={`shrink-0 font-semibold px-2.5 py-1 rounded-lg ${t.accentBg} ${t.accent} whitespace-nowrap`}>
+        {copied ? '✓ Copied!' : 'Copy link'}
+      </button>
+      <button onClick={dismiss} className="shrink-0 text-slate-300 hover:text-slate-500 text-base leading-none">×</button>
     </div>
   )
 }
@@ -319,8 +310,20 @@ export default function Dashboard({ ws, online = [] }) {
     api.get(`/rooms/${code}`).then((data) => {
       setRoomData(data)
       store.set('roomData', data)
-    }).catch(() => {})
+    }).catch(() => {
+      store.clear()
+      nav('/')
+    })
   }, [code])
+
+  useEffect(() => {
+    if (!ws) return
+    return ws.on('presence:list', () => {
+      api.get(`/rooms/${code}`).then((data) => {
+        if (data) { setRoomData(data); store.set('roomData', data) }
+      }).catch(() => {})
+    })
+  }, [ws, code])
 
   async function saveMeetup() {
     if (!meetup) return

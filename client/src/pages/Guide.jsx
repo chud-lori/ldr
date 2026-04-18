@@ -84,6 +84,7 @@ export default function Guide() {
       <Section emoji="🎬" title="Watch Party">
         <p>Paste any YouTube URL or video ID. Both screens stay in sync — play, pause, and seek are broadcast in real time.</p>
         <p>When one person joins late, their player automatically catches up to where the other person is.</p>
+        <p>If your partner loads a new video while you're watching, you'll get a prompt to switch or stay — no surprise interruptions.</p>
         <p>Chat is saved per room (not per video), so your conversation history stays.</p>
       </Section>
 
@@ -94,7 +95,7 @@ export default function Guide() {
 
       <Section emoji="🎯" title="Trivia">
         <p>Create questions <em>about yourself</em> for your partner to answer. They type their guess and see instantly if they're right.</p>
-        <p>Wrong answers can be retried. The correct answer is only revealed after a wrong attempt.</p>
+        <p>Each question allows one attempt. If the answer is wrong, the correct answer is revealed — no retries, keep it honest!</p>
         <p>Your own questions show the answer and a score of how many your partner got right.</p>
       </Section>
 

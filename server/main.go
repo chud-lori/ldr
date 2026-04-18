@@ -30,7 +30,9 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := db.Connect(ctx, mongoURI); err != nil {
+	dbName := os.Getenv("MONGO_DB")
+
+	if err := db.Connect(ctx, mongoURI, dbName); err != nil {
 		log.Fatal("MongoDB:", err)
 	}
 

@@ -10,5 +10,6 @@ export const store = {
     localStorage.removeItem('roomCode')
     localStorage.removeItem('roomData')
     localStorage.removeItem('theme')
+    localStorage.removeItem('seenWelcome')
   },
 }

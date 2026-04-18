@@ -75,7 +75,7 @@ function UserSettings({ onClose, t }) {
 export default function Layout({ children, ws, online = [] }) {
   const { pathname } = useLocation()
   const { t } = useTheme()
-  const nav = useNavigate()
+  const navigate = useNavigate()
   const name = store.get('userName')
   const uid = store.get('userId')
   const [showUserSettings, setShowUserSettings] = useState(false)
@@ -99,7 +99,7 @@ export default function Layout({ children, ws, online = [] }) {
 
           {/* Guide */}
           <button
-            onClick={() => nav('/guide')}
+            onClick={() => navigate('/guide')}
             className="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 text-sm font-bold transition-colors"
             title="How to use"
           >?</button>
