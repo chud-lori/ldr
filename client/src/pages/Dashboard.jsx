@@ -299,6 +299,7 @@ export default function Dashboard({ ws, online = [] }) {
   const nav = useNavigate()
   const { t } = useTheme()
   const code = store.get('roomCode')
+  const uid = store.get('userId')
 
   const [roomData, setRoomData] = useState(store.get('roomData'))
   const [meetup, setMeetup] = useState('')
@@ -365,7 +366,11 @@ export default function Dashboard({ ws, online = [] }) {
             <h2 className="font-bold text-slate-800">{roomData?.name || 'Our Room'}</h2>
             <div className="flex gap-2 mt-1.5 flex-wrap">
               {roomData?.members?.map((m) => {
-                const isOnline = online.some((u) => u.userId === m.userId)
+                // Current user: trust ws.connected directly — presence list may
+                // not have arrived yet when this renders.
+                const isOnline = m.userId === uid
+                  ? ws?.connected
+                  : online.some((u) => u.userId === m.userId)
                 return (
                   <span key={m.userId} className={`text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1 ${
                     isOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
