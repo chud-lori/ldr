@@ -111,9 +111,9 @@ export default function BucketList() {
               <div key={item.id} className="flex items-start gap-2">
                 <div className="flex-1"><SurpriseItem item={item} uid={uid} /></div>
                 {item.userId === uid && (
-                  <div className="flex flex-col gap-1 mt-2">
-                    <button onClick={() => toggleDone(item)} className="text-xs text-emerald-500 hover:text-emerald-700 font-bold">✓</button>
-                    <button onClick={() => remove(item)} className="text-xs text-slate-300 hover:text-red-400">✕</button>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <button onClick={() => toggleDone(item)} className="w-8 h-8 flex items-center justify-center rounded-lg text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 text-base font-bold">✓</button>
+                    <button onClick={() => remove(item)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 text-base">✕</button>
                   </div>
                 )}
               </div>
@@ -130,7 +130,7 @@ export default function BucketList() {
               <div key={item.id} className="flex items-start gap-2">
                 <div className="flex-1"><SurpriseItem item={item} uid={uid} /></div>
                 {item.userId === uid && (
-                  <button onClick={() => remove(item)} className="text-xs text-slate-300 hover:text-red-400 mt-2">✕</button>
+                  <button onClick={() => remove(item)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 shrink-0">✕</button>
                 )}
               </div>
             ))}

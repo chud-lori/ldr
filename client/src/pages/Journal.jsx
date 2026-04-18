@@ -104,7 +104,7 @@ export default function Journal() {
           </div>
         )}
 
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <EntryCard entry={myEntry} mine t={t} />
           <EntryCard entry={partnerEntry} mine={false} t={t} />
         </div>

@@ -111,6 +111,7 @@ export default function Puzzle({ ws }) {
                     backgroundSize: `${gs * cellSize}px ${gs * cellSize}px`,
                     backgroundPosition: `${-(piece.correctX * cellSize)}px ${-(piece.correctY * cellSize)}px`,
                     cursor: completed ? 'default' : 'pointer',
+                    touchAction: 'manipulation',
                   }}
                   className={`rounded transition-all border-2 ${
                     isSelected ? 'border-amber-400 scale-95 shadow-lg z-10 relative'

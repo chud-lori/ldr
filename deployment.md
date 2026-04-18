@@ -87,12 +87,19 @@ Two options — pick one.
 ### Option A: MongoDB Atlas (recommended — zero ops)
 
 1. Create a free cluster at [cloud.mongodb.com](https://cloud.mongodb.com)
-2. Create a database user with read/write access
-3. Under **Network Access**, add your server IP (or `0.0.0.0/0` to allow all)
+2. Create a database user: **Database Access → Add New Database User**
+   - Auth method: Password
+   - Role: `readWriteAnyDatabase`
+   - Save the username and password
+3. Whitelist your server IP: **Network Access → Add IP Address**
+   - Find your server's public IP: `curl -s ifconfig.me` (run this on the server)
+   - Paste the IP and click Confirm
+   - If you ever redeploy to a different server, update this IP — Atlas will refuse connections from unlisted IPs with a TLS error
 4. Click **Connect → Drivers** and copy the connection string:
    ```
    mongodb+srv://user:password@cluster0.xxxxx.mongodb.net/ldr?retryWrites=true&w=majority
    ```
+   Replace `user`, `password`, and the cluster hostname with your actual values.
 5. Use this as `MONGO_URI` in your `.env` file (step 6)
 
 You can view and edit your data with **MongoDB Compass** — paste the same connection string.

@@ -1,4 +1,19 @@
 @import "tailwindcss";
 
 * { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, sans-serif; }
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  /* Reserve space for iPhone home indicator */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Prevent iOS Safari from zooming in when tapping inputs (requires font-size >= 16px) */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}
+
+/* Faster tap, no double-tap zoom on tappable elements */
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
