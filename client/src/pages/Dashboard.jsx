@@ -260,7 +260,10 @@ export default function Dashboard({ ws, online = [] }) {
         <SettingsPanel
           code={code}
           roomData={roomData}
-          onSaved={setRoomData}
+          onSaved={(updated) => {
+            setRoomData(updated)
+            if (updated.theme) ws?.send('room:theme', { theme: updated.theme })
+          }}
           onClose={() => setShowSettings(false)}
           t={t}
         />

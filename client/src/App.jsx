@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { store } from './lib/store'
 import { useWebSocket } from './hooks/useWebSocket'
-import { ThemeProvider } from './hooks/useTheme'
+import { ThemeProvider, useTheme } from './hooks/useTheme'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
@@ -23,13 +23,22 @@ function AppRoutes() {
   const code = store.get('roomCode')
   const ws = useWebSocket(code)
   const [online, setOnline] = useState([])
+  const { setTheme } = useTheme()
 
-  // Track presence at app level so it stays alive across page navigation
   useEffect(() => {
     if (!ws) return
     const off = ws.on('presence:list', (msg) => setOnline(msg.payload || []))
     return off
   }, [ws])
+
+  // Sync theme changes from partner in real time
+  useEffect(() => {
+    if (!ws) return
+    const off = ws.on('room:theme', (msg) => {
+      if (msg.payload?.theme) setTheme(msg.payload.theme)
+    })
+    return off
+  }, [ws, setTheme])
 
   return (
     <Routes>

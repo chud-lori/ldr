@@ -97,11 +97,14 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 			outData, _ := json.Marshal(msg)
 
 			switch {
-			case strings.HasPrefix(msg.Type, "watch:") || msg.Type == "watch:request-sync" || strings.HasPrefix(msg.Type, "puzzle:"):
+			case strings.HasPrefix(msg.Type, "watch:") || strings.HasPrefix(msg.Type, "puzzle:"):
 				hub.Broadcast(code, outData, client)
 				if msg.Type == "puzzle:move" {
 					go handlePuzzleMove(code, msg.Payload)
 				}
+
+			case msg.Type == "room:theme":
+				hub.Broadcast(code, outData, client)
 
 			case msg.Type == "chat:send":
 				var payload struct {
