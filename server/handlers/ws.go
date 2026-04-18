@@ -31,6 +31,17 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 		uid := r.URL.Query().Get("userId")
 		name := r.URL.Query().Get("name")
 
+		// Verify caller is a member before upgrading to WebSocket.
+		{
+			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+			ok := isMemberOf(ctx, code, uid)
+			cancel()
+			if !ok {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+		}
+
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 			InsecureSkipVerify: true,
 		})

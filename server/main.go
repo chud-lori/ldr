@@ -43,35 +43,42 @@ func main() {
 	r.Use(corsMiddleware)
 
 	r.Route("/api", func(r chi.Router) {
+		// Public — no membership required
 		r.Post("/rooms", handlers.CreateRoom)
 		r.Get("/rooms/{code}", handlers.GetRoom)
 		r.Post("/rooms/{code}/join", handlers.JoinRoom)
-		r.Patch("/rooms/{code}", handlers.UpdateRoom)
-		r.Patch("/rooms/{code}/me", handlers.UpdateMe)
-		r.Delete("/rooms/{code}", handlers.DeleteRoom)
-		r.Put("/rooms/{code}/meetup", handlers.SetMeetup)
 
-		r.Get("/rooms/{code}/journal", handlers.GetJournal)
-		r.Get("/rooms/{code}/journal/all", handlers.GetJournalAll)
-		r.Post("/rooms/{code}/journal", handlers.SaveJournal)
+		// Protected — caller must be a member of the room
+		r.Group(func(r chi.Router) {
+			r.Use(handlers.RequireMember)
 
-		r.Get("/rooms/{code}/bucketlist", handlers.GetBucketList)
-		r.Post("/rooms/{code}/bucketlist", handlers.AddBucketItem)
-		r.Patch("/rooms/{code}/bucketlist/{id}", handlers.UpdateBucketItem)
-		r.Delete("/rooms/{code}/bucketlist/{id}", handlers.DeleteBucketItem)
+			r.Patch("/rooms/{code}", handlers.UpdateRoom)
+			r.Patch("/rooms/{code}/me", handlers.UpdateMe)
+			r.Delete("/rooms/{code}", handlers.DeleteRoom)
+			r.Put("/rooms/{code}/meetup", handlers.SetMeetup)
 
-		r.Get("/rooms/{code}/trivia", handlers.GetTrivia)
-		r.Post("/rooms/{code}/trivia", handlers.AddTrivia)
-		r.Post("/rooms/{code}/trivia/{id}/answer", handlers.AnswerTrivia)
-		r.Delete("/rooms/{code}/trivia/{id}", handlers.DeleteTrivia)
+			r.Get("/rooms/{code}/journal", handlers.GetJournal)
+			r.Get("/rooms/{code}/journal/all", handlers.GetJournalAll)
+			r.Post("/rooms/{code}/journal", handlers.SaveJournal)
 
-		r.Get("/rooms/{code}/watchparty", handlers.GetWatchParty)
-		r.Put("/rooms/{code}/watchparty", handlers.SetWatchParty)
-		r.Get("/rooms/{code}/chat", handlers.GetChatHistory)
+			r.Get("/rooms/{code}/bucketlist", handlers.GetBucketList)
+			r.Post("/rooms/{code}/bucketlist", handlers.AddBucketItem)
+			r.Patch("/rooms/{code}/bucketlist/{id}", handlers.UpdateBucketItem)
+			r.Delete("/rooms/{code}/bucketlist/{id}", handlers.DeleteBucketItem)
 
-		r.Get("/rooms/{code}/puzzle", handlers.GetPuzzle)
-		r.Post("/rooms/{code}/puzzle", handlers.CreatePuzzle)
-		r.Delete("/rooms/{code}/puzzle", handlers.ResetPuzzle)
+			r.Get("/rooms/{code}/trivia", handlers.GetTrivia)
+			r.Post("/rooms/{code}/trivia", handlers.AddTrivia)
+			r.Post("/rooms/{code}/trivia/{id}/answer", handlers.AnswerTrivia)
+			r.Delete("/rooms/{code}/trivia/{id}", handlers.DeleteTrivia)
+
+			r.Get("/rooms/{code}/watchparty", handlers.GetWatchParty)
+			r.Put("/rooms/{code}/watchparty", handlers.SetWatchParty)
+			r.Get("/rooms/{code}/chat", handlers.GetChatHistory)
+
+			r.Get("/rooms/{code}/puzzle", handlers.GetPuzzle)
+			r.Post("/rooms/{code}/puzzle", handlers.CreatePuzzle)
+			r.Delete("/rooms/{code}/puzzle", handlers.ResetPuzzle)
+		})
 	})
 
 	r.Get("/ws/{code}", handlers.WSHandler(hub))

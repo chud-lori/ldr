@@ -125,12 +125,13 @@ func AnswerTrivia(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteTrivia(w http.ResponseWriter, r *http.Request) {
+	code := strings.ToUpper(chi.URLParam(r, "code"))
 	id, _ := bson.ObjectIDFromHex(chi.URLParam(r, "id"))
 	uid := userID(r)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	db.Col("trivia").DeleteOne(ctx, bson.M{"_id": id, "userId": uid})
+	db.Col("trivia").DeleteOne(ctx, bson.M{"_id": id, "roomId": code, "userId": uid})
 	w.WriteHeader(http.StatusNoContent)
 }

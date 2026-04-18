@@ -74,6 +74,7 @@ func AddBucketItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateBucketItem(w http.ResponseWriter, r *http.Request) {
+	code := strings.ToUpper(chi.URLParam(r, "code"))
 	id, _ := bson.ObjectIDFromHex(chi.URLParam(r, "id"))
 	uid := userID(r)
 
@@ -86,18 +87,19 @@ func UpdateBucketItem(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	filter := bson.M{"_id": id, "userId": uid}
+	filter := bson.M{"_id": id, "roomId": code, "userId": uid}
 	db.Col("bucketlist").UpdateOne(ctx, filter, bson.M{"$set": bson.M{"done": body.Done, "text": body.Text}})
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func DeleteBucketItem(w http.ResponseWriter, r *http.Request) {
+	code := strings.ToUpper(chi.URLParam(r, "code"))
 	id, _ := bson.ObjectIDFromHex(chi.URLParam(r, "id"))
 	uid := userID(r)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	db.Col("bucketlist").DeleteOne(ctx, bson.M{"_id": id, "userId": uid})
+	db.Col("bucketlist").DeleteOne(ctx, bson.M{"_id": id, "roomId": code, "userId": uid})
 	w.WriteHeader(http.StatusNoContent)
 }
