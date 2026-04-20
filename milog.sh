@@ -4,10 +4,39 @@
 # ==============================================================================
 set -euo pipefail
 
-# --- Configuration ---
+# --- Configuration (defaults; overridable via config file or env) ---
 LOG_DIR="/var/log/nginx"
 LOGS=("dolanan" "ethok" "finance" "ldr" "profile" "sinepil")
 REFRESH=5
+
+# Optional user config — sourced if present. Can override any variable above.
+# Example:
+#     LOG_DIR="/var/log/nginx"
+#     LOGS=(myapp api web)          # or leave unset to auto-discover
+#     REFRESH=3
+MILOG_CONFIG="${MILOG_CONFIG:-$HOME/.config/milog/config.sh}"
+# shellcheck disable=SC1090
+[[ -f "$MILOG_CONFIG" ]] && . "$MILOG_CONFIG"
+
+# Env var overrides win over the config file
+[[ -n "${MILOG_LOG_DIR:-}" ]] && LOG_DIR="$MILOG_LOG_DIR"
+[[ -n "${MILOG_APPS:-}"    ]] && read -r -a LOGS <<< "$MILOG_APPS"
+
+# Auto-discover: if no apps ended up configured, glob *.access.log in LOG_DIR
+if [[ ${#LOGS[@]} -eq 0 ]]; then
+    shopt -s nullglob
+    for f in "$LOG_DIR"/*.access.log; do
+        name="${f##*/}"; name="${name%.access.log}"
+        LOGS+=("$name")
+    done
+    shopt -u nullglob
+fi
+
+if [[ ${#LOGS[@]} -eq 0 ]]; then
+    echo "MiLog: no apps configured and none found in $LOG_DIR" >&2
+    echo "  Set MILOG_APPS=\"a b c\", edit $MILOG_CONFIG, or drop *.access.log into $LOG_DIR" >&2
+    exit 1
+fi
 
 # Alert thresholds
 THRESH_REQ_WARN=15
@@ -20,6 +49,9 @@ THRESH_DISK_WARN=80
 THRESH_DISK_CRIT=95
 THRESH_4XX_WARN=20
 THRESH_5XX_WARN=5
+
+# Sparkline history depth (samples kept per app in monitor mode)
+SPARK_LEN=30
 
 # --- ANSI ---
 R="\033[0;31m"  G="\033[0;32m"  Y="\033[0;33m"  B="\033[0;34m"
@@ -142,6 +174,36 @@ tcol() {
     printf '%s' "$G"
 }
 
+# Unicode sparkline: reads space-separated ints on $1, prints sparkline chars.
+# Each sample scales to one of 8 block chars relative to the max in the series.
+sparkline_render() {
+    local -a vals=( $1 )
+    local -a blk=('▁' '▂' '▃' '▄' '▅' '▆' '▇' '█')
+    local max=0 v
+    for v in "${vals[@]}"; do (( v > max )) && max=$v; done
+    local out="" idx
+    if (( max == 0 )); then
+        for v in "${vals[@]}"; do out+="${blk[0]}"; done
+    else
+        for v in "${vals[@]}"; do
+            idx=$(( v * 7 / max ))
+            (( idx > 7 )) && idx=7
+            (( idx < 0 )) && idx=0
+            out+="${blk[$idx]}"
+        done
+    fi
+    printf '%s' "$out"
+}
+
+# Wait up to $1 seconds for a single keypress. Prints the key if pressed, empty
+# on timeout. Needs an interactive tty; silent read so input doesn't echo.
+wait_or_key() {
+    local k
+    if read -rsn1 -t "$1" k 2>/dev/null; then
+        printf '%s' "$k"
+    fi
+}
+
 # ==============================================================================
 # NGINX ROW HELPERS
 # ==============================================================================
@@ -150,15 +212,22 @@ nginx_row() {
     local name="$1" CUR_TIME="$2" TOTAL_ref="$3"
     local file="$LOG_DIR/$name.access.log"
     local count=0 c4=0 c5=0
-    count=$(grep -c "$CUR_TIME" "$file" 2>/dev/null || true)
-    [[ -z "$count" ]] && count=0
+
+    # Single awk pass: total + 4xx + 5xx in one file scan.
+    if [[ -f "$file" ]]; then
+        read -r count c4 c5 <<< "$(awk -v t="$CUR_TIME" '
+            index($0, t) {
+                n++
+                if (match($0, / [45][0-9][0-9] /)) {
+                    if (substr($0, RSTART+1, 1) == "4") e4++; else e5++
+                }
+            }
+            END { printf "%d %d %d\n", n+0, e4+0, e5+0 }
+        ' "$file" 2>/dev/null)"
+        count=${count:-0}; c4=${c4:-0}; c5=${c5:-0}
+    fi
     # shellcheck disable=SC2034
     eval "$TOTAL_ref=$(( ${!TOTAL_ref} + count ))"
-
-    if [[ $count -gt 0 ]]; then
-        c4=$(grep "$CUR_TIME" "$file" 2>/dev/null | grep -c ' 4[0-9][0-9] ' || true)
-        c5=$(grep "$CUR_TIME" "$file" 2>/dev/null | grep -c ' 5[0-9][0-9] ' || true)
-    fi
 
     local st_plain st_col b_col alert=""
     if [[ $count -gt 0 ]]; then
@@ -173,25 +242,53 @@ nginx_row() {
     [[ $c4 -ge $THRESH_4XX_WARN && -z "$alert" ]]    && alert="$R"
     [[ $count -gt $THRESH_REQ_CRIT && -z "$alert" ]] && alert="$R"
 
-    local bc=$(( count / 2 ))
-    [[ $bc -gt $W_BAR ]] && bc=$W_BAR
     local bars_plain bars_col
-    if [[ $bc -gt 0 ]]; then
-        bars_plain=$(printf '|%.0s' $(seq 1 $bc))
-        bars_col="${b_col}${bars_plain}${NC}"
+    if [[ "${MILOG_HIST_ENABLED:-0}" == "1" ]]; then
+        # Push current sample into ring buffer (HIST is a global assoc array).
+        # Freeze the buffer when MILOG_HIST_PAUSED=1 so paused view doesn't drift.
+        local -a hist_arr=( ${HIST[$name]:-} )
+        if [[ "${MILOG_HIST_PAUSED:-0}" != "1" ]]; then
+            hist_arr+=( "$count" )
+            if (( ${#hist_arr[@]} > SPARK_LEN )); then
+                hist_arr=( "${hist_arr[@]: -$SPARK_LEN}" )
+            fi
+            HIST[$name]="${hist_arr[*]}"
+        fi
+        # Handle first tick before any samples exist
+        (( ${#hist_arr[@]} == 0 )) && hist_arr=( 0 )
+
+        local spark n_samples=${#hist_arr[@]}
+        spark=$(sparkline_render "${hist_arr[*]}")
+        # Plain placeholder of equal column-width for padding arithmetic.
+        bars_plain=$(printf '.%.0s' $(seq 1 "$n_samples"))
+        bars_col="${b_col}${spark}${NC}"
     else
-        bars_plain="-"; bars_col="${D}-${NC}"
+        local bc=$(( count / 2 ))
+        [[ $bc -gt $W_BAR ]] && bc=$W_BAR
+        if [[ $bc -gt 0 ]]; then
+            bars_plain=$(printf '|%.0s' $(seq 1 $bc))
+            bars_col="${b_col}${bars_plain}${NC}"
+        else
+            bars_plain="-"; bars_col="${D}-${NC}"
+        fi
     fi
 
-    # Append error tag, trimming bar to fit
+    # Append error tag, trimming bar/sparkline to fit
     if [[ $c4 -gt 0 || $c5 -gt 0 ]]; then
         local etag_p=" 4xx:${c4} 5xx:${c5}"
         local etag_c=" ${Y}4xx:${c4}${NC} ${R}5xx:${c5}${NC}"
         local max_b=$(( W_BAR - ${#etag_p} ))
-        [[ ${#bars_plain} -gt $max_b ]] && {
+        if [[ ${#bars_plain} -gt $max_b ]]; then
             bars_plain="${bars_plain:0:$max_b}"
-            bars_col="${b_col}${bars_plain}${NC}"
-        }
+            if [[ "${MILOG_HIST_ENABLED:-0}" == "1" ]]; then
+                # Re-render sparkline truncated to max_b samples (tail end)
+                local -a trimmed=( ${HIST[$name]:-} )
+                trimmed=( "${trimmed[@]: -$max_b}" )
+                bars_col="${b_col}$(sparkline_render "${trimmed[*]}")${NC}"
+            else
+                bars_col="${b_col}${bars_plain}${NC}"
+            fi
+        fi
         bars_plain="${bars_plain}${etag_p}"
         bars_col="${bars_col}${etag_c}"
     fi
@@ -203,17 +300,56 @@ nginx_row() {
 # MODE: monitor
 # ==============================================================================
 mode_monitor() {
+    # Async CPU sampler — reads /proc/stat in a background loop, writes the
+    # latest % to a tmpfile. Keeps the render loop from blocking on sleep 0.2.
+    local cpu_file cpu_pid
+    cpu_file=$(mktemp 2>/dev/null || echo "/tmp/milog.cpu.$$")
+    echo 0 > "$cpu_file"
+    (
+        while :; do
+            v=$(cpu_usage)
+            printf '%s\n' "$v" > "${cpu_file}.tmp" 2>/dev/null \
+                && mv "${cpu_file}.tmp" "$cpu_file" 2>/dev/null
+            sleep 1
+        done
+    ) & cpu_pid=$!
+
+    # Enable sparkline history for nginx_row
+    MILOG_HIST_ENABLED=1
+    declare -gA HIST
+
+    # Hide cursor and quiet input echo so keystrokes don't litter the TUI.
+    tput civis 2>/dev/null || true
+    stty -echo 2>/dev/null || true
+
+    local _cleanup='
+        kill '"$cpu_pid"' 2>/dev/null
+        rm -f "'"$cpu_file"'" "'"${cpu_file}.tmp"'" 2>/dev/null
+        stty echo 2>/dev/null
+        tput cnorm 2>/dev/null
+        printf "\n"
+    '
+    trap "$_cleanup; exit 0" INT TERM
+    trap "$_cleanup" EXIT
+
     local net_prev_rx=0 net_prev_tx=0
     read -r net_prev_rx net_prev_tx _ <<< "$(net_rx_tx)"
 
+    local first=1 paused=0
     while true; do
-        clear
+        if (( first )); then
+            clear
+            first=0
+        else
+            tput cup 0 0 2>/dev/null || printf '\033[H'
+        fi
         local CUR_TIME TIMESTAMP TOTAL=0
         CUR_TIME=$(date '+%d/%b/%Y:%H:%M')
         TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
         local cpu mem_pct mem_used mem_total disk_pct disk_used disk_total
-        cpu=$(cpu_usage)
+        cpu=$(cat "$cpu_file" 2>/dev/null); cpu=${cpu:-0}
+        [[ "$cpu" =~ ^[0-9]+$ ]] || cpu=0
         read -r mem_pct mem_used mem_total <<< "$(mem_info)"
         read -r disk_pct disk_used disk_total <<< "$(disk_info)"
 
@@ -221,7 +357,9 @@ mode_monitor() {
         read -r net_rx net_tx net_iface <<< "$(net_rx_tx)"
         local drx=$(( net_rx - net_prev_rx ))
         local dtx=$(( net_tx - net_prev_tx ))
-        net_prev_rx=$net_rx; net_prev_tx=$net_tx
+        if (( ! paused )); then
+            net_prev_rx=$net_rx; net_prev_tx=$net_tx
+        fi
         local rx_s tx_s; rx_s=$(fmt_bytes "$drx"); tx_s=$(fmt_bytes "$dtx")
 
         local cpu_col mem_col disk_col
@@ -297,9 +435,24 @@ mode_monitor() {
         draw_row "$f_p" "$f_c"
 
         bdr_bot
-        printf "${D} Ctrl+C to exit  |  Refresh: ${REFRESH}s  |  blink=5xx>=${THRESH_5XX_WARN}  red=4xx>=${THRESH_4XX_WARN} or req>=${THRESH_REQ_CRIT}${NC}\n"
+        local ptag=""
+        (( paused )) && ptag="  ${R}[PAUSED]${NC}"
+        # Clear-to-EOL so shorter footer over a longer one doesn't leave junk.
+        printf "${D} q:quit  p:pause  r:refresh  +/-:rate (${REFRESH}s)  |  5xx>=${THRESH_5XX_WARN} blinks${NC}${ptag}\033[K\n"
+        # Also clear from cursor down in case previous frame was taller.
+        printf '\033[J'
 
-        sleep "$REFRESH"
+        MILOG_HIST_PAUSED=$paused
+        local key
+        key=$(wait_or_key "$REFRESH")
+        case "$key" in
+            q|Q) break ;;
+            p|P) paused=$(( 1 - paused )) ;;
+            r|R) ;;
+            +)   (( REFRESH > 1 )) && REFRESH=$(( REFRESH - 1 )) ;;
+            -)   REFRESH=$(( REFRESH + 1 )) ;;
+            *)   ;;
+        esac
     done
 }
 
@@ -406,8 +559,8 @@ mode_grep() {
     local name="${1:-}" pattern="${2:-.}"
     [[ -z "$name" || ! " ${LOGS[*]} " =~ " $name " ]] && {
         echo -e "${R}Usage: $0 grep <app> <pattern>${NC}  Apps: ${LOGS[*]}"; exit 1; }
-    echo -e "${D}tail -f $LOG_DIR/$name.access.log | grep '$pattern'  (Ctrl+C)${NC}\n"
-    tail -f "$LOG_DIR/$name.access.log" | grep --line-buffered -i "$pattern"
+    echo -e "${D}tail -F $LOG_DIR/$name.access.log | grep '$pattern'  (Ctrl+C)${NC}\n"
+    tail -F "$LOG_DIR/$name.access.log" | grep --line-buffered -i "$pattern"
 }
 
 # ==============================================================================
@@ -421,7 +574,7 @@ mode_errors() {
         local col="${colors[$i]}" label
         label=$(printf "%-8s" "$name")
         if [[ -f "$file" ]]; then
-            tail -f "$file" 2>/dev/null | \
+            tail -F "$file" 2>/dev/null | \
                 grep --line-buffered ' [45][0-9][0-9] ' | \
                 awk -v col="$col" -v lbl="$label" -v nc="$NC" \
                     '{print col"["lbl"]"nc" "$0; fflush()}' &
@@ -477,7 +630,7 @@ mode_probes() {
         local col="${colors[$i]}" label
         label=$(printf "%-8s" "$name")
         if [[ -f "$file" ]]; then
-            tail -f "$file" 2>/dev/null | \
+            tail -F "$file" 2>/dev/null | \
                 grep --line-buffered -Ei "$pat" | \
                 awk -v col="$col" -v lbl="$label" -v nc="$NC" \
                     '{print col"["lbl"]"nc" "$0; fflush()}' &
@@ -594,7 +747,7 @@ mode_exploits() {
         local col="${colors[$i]}" label
         label=$(printf "%-8s" "$name")
         if [[ -f "$file" ]]; then
-            tail -f "$file" 2>/dev/null | \
+            tail -F "$file" 2>/dev/null | \
                 grep --line-buffered -Ei "$pat" | \
                 awk -v col="$col" -v lbl="$label" -v r="$R" -v nc="$NC" \
                     '{print col"["lbl"]"nc" "r"[EXPLOIT]"nc" "$0; fflush()}' &
@@ -607,13 +760,12 @@ mode_exploits() {
 }
 
 # ==============================================================================
-# COLOR PREFIX — background-process tail, one per app with hardcoded color
+# COLOR PREFIX — merged initial dump sorted by nginx timestamp, then live tails
 # ==============================================================================
 color_prefix() {
-    # Spawn a separate tail for each app so color is always known — avoids
-    # relying on "==> filename <==" headers which GNU tail only emits once.
     local pids=()
     local colors=("$B" "$C" "$G" "$M" "$Y" "$R")
+    local -a F_files=() F_cols=() F_labels=()
     local i=0
     for name in "${LOGS[@]}"; do
         local file="$LOG_DIR/$name.access.log"
@@ -621,14 +773,45 @@ color_prefix() {
         local label
         label=$(printf "%-8s" "$name")
         if [[ -f "$file" ]]; then
-            tail -f "$file" 2>/dev/null | \
-                awk -v col="$col" -v lbl="$label" -v nc="$NC" \
-                    '{print col"["lbl"]"nc" "$0; fflush()}' &
-            pids+=($!)
+            F_files+=("$file")
+            F_cols+=("$col")
+            F_labels+=("$label")
         fi
         (( i++ )) || true
     done
-    # Wait; kill all background tails on Ctrl+C
+
+    # Initial dump: last 10 lines from every file, merged and sorted by log timestamp
+    # so output is globally by recency rather than grouped per app.
+    {
+        local idx
+        for idx in "${!F_files[@]}"; do
+            tail -n 10 "${F_files[$idx]}" 2>/dev/null | \
+                awk -v col="${F_cols[$idx]}" -v lbl="${F_labels[$idx]}" -v nc="$NC" '
+                {
+                    if (match($0, /\[[0-9]{2}\/[A-Za-z]+\/[0-9]{4}:[0-9]{2}:[0-9]{2}:[0-9]{2}/)) {
+                        d     = substr($0, RSTART+1,  2)
+                        mname = substr($0, RSTART+4,  3)
+                        y     = substr($0, RSTART+8,  4)
+                        hms   = substr($0, RSTART+13, 8)
+                        mi = index("JanFebMarAprMayJunJulAugSepOctNovDec", mname)
+                        mo = int((mi + 2) / 3)
+                        key = sprintf("%s%02d%s%s", y, mo, d, hms)
+                    } else {
+                        key = "00000000000000000"
+                    }
+                    printf "%s\t%s[%s]%s %s\n", key, col, lbl, nc, $0
+                }'
+        done
+    } | sort -k1,1 | cut -f2-
+
+    # Live tails: parallel, naturally interleaved by arrival time.
+    # -n 0 suppresses each tail's own initial dump (we already emitted a merged one).
+    for idx in "${!F_files[@]}"; do
+        tail -n 0 -F "${F_files[$idx]}" 2>/dev/null | \
+            awk -v col="${F_cols[$idx]}" -v lbl="${F_labels[$idx]}" -v nc="$NC" \
+                '{print col"["lbl"]"nc" "$0; fflush()}' &
+        pids+=($!)
+    done
     trap 'kill "${pids[@]}" 2>/dev/null; exit' INT TERM
     wait
 }
@@ -644,6 +827,7 @@ ${W}USAGE${NC}  $0 [command] [args]
 
 ${W}DASHBOARDS${NC}
   ${C}monitor${NC}            full TUI: nginx + CPU/MEM/DISK/NET + workers
+                     ${D}keys: q=quit  p=pause  r=refresh  +/-=rate${NC}
   ${C}rate${NC}               nginx-only req/min dashboard
 
 ${W}ANALYSIS${NC}
@@ -667,15 +851,16 @@ ${W}THRESHOLDS${NC}
   4xx      warn=${THRESH_4XX_WARN}   5xx warn=${THRESH_5XX_WARN}
 
 ${W}APPS${NC}  ${LOGS[*]}
+  ${D}dir:${NC} ${LOG_DIR}
+  ${D}config:${NC} ${MILOG_CONFIG}  ${D}(override LOG_DIR, LOGS, REFRESH, thresholds)${NC}
+  ${D}env:${NC} MILOG_LOG_DIR, MILOG_APPS=\"a b c\", MILOG_CONFIG=/path/to/config.sh
+  ${D}auto-discover:${NC} if LOGS is empty, all ${LOG_DIR}/*.access.log are picked up
 "
 }
 
 # ==============================================================================
 # DISPATCH
 # ==============================================================================
-FILES=()
-for l in "${LOGS[@]}"; do FILES+=("$LOG_DIR/$l.access.log"); done
-
 case "${1:-}" in
     monitor)  mode_monitor ;;
     rate)     mode_rate ;;
@@ -688,10 +873,10 @@ case "${1:-}" in
     probes)   mode_probes ;;
     suspects) mode_suspects "${2:-20}" "${3:-2000}" ;;
     -h|--help|help) show_help ;;
-    ""|logs)  tail -f "${FILES[@]}" | color_prefix ;;
+    ""|logs)  color_prefix ;;
     *)
         if [[ " ${LOGS[*]} " =~ " $1 " ]]; then
-            tail -f "$LOG_DIR/$1.access.log"
+            tail -F "$LOG_DIR/$1.access.log"
         else
             echo -e "${R}Unknown command: '$1'${NC}"; show_help; exit 1
         fi ;;

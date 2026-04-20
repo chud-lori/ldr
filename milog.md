@@ -114,6 +114,18 @@ milog help
 
 `Ctrl+C` exits any live view.
 
+### `monitor` keybindings
+
+| Key        | Action                                                |
+| ---------- | ----------------------------------------------------- |
+| `q`        | quit                                                  |
+| `p`        | toggle pause (freezes sparklines; `[PAUSED]` in footer) |
+| `r`        | refresh now                                           |
+| `+` / `-`  | decrease / increase refresh interval                  |
+
+Sparklines in the INTENSITY column show each app's last ~30 samples of
+`req/min`. Change history depth by setting `SPARK_LEN=60` in the config.
+
 ## nginx log format
 
 MiLog expects the default `combined` format:
