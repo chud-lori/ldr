@@ -11,18 +11,14 @@ A private web app for couples in long-distance relationships.
 **Requirements:** Go 1.21+, Bun, MongoDB
 
 ```bash
-# Terminal 1 — backend
-cd server
-cp .env.example .env    # set MONGO_URI if not using localhost
-go run .                # :8080
-
-# Terminal 2 — frontend
-cd client
-bun install
-bun dev                 # :5173, proxies /api and /ws to :8080
+cp server/.env.example server/.env    # set MONGO_URI if not using localhost
+make install                          # client deps + Go modules
+make dev                              # runs server + client in ONE terminal
 ```
 
-Open `http://localhost:5173`, create a room, share the 6-char code with your partner.
+Open `http://localhost:5173`, create a room, share the 6-char code with your partner. Ctrl+C stops both processes cleanly. Logs are prefixed `[srv]` and `[web]` so you can tell them apart.
+
+Other targets: `make server`, `make client`, `make build`, `make test`, `make help`.
 
 ---
 
