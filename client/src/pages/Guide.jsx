@@ -139,6 +139,11 @@ export default function Guide() {
         <p className="text-xs text-slate-400 pt-1">The personal link is unique to you. Don't share it with your partner — they have their own.</p>
       </Section>
 
+      <Section emoji="🚪" title="Signing out on this device">
+        <p>Once you've joined a room, hitting <strong>/</strong> (the home URL) takes you straight to your dashboard — no need to re-enter the code.</p>
+        <p>If you want to sign out on this device (for example to hand a shared laptop back, or to join a different room), open <strong>⚙️ Room Settings</strong> on the dashboard and tap <strong>"Leave this device"</strong>. Your room stays intact for your partner — you can rejoin anytime with your personal link or the room code.</p>
+      </Section>
+
       <Section emoji="🗑️" title="Inactive room deletion">
         <p>To keep the database clean, rooms with <strong>no activity for 30 days</strong> are automatically deleted — including all journal entries, chat history, bucket list, trivia, and puzzle data.</p>
         <p>Simply opening the app resets the timer. A warning will appear on the dashboard when your room is within 7 days of deletion.</p>

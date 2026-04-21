@@ -462,11 +462,12 @@ function RoomCode({ code, t }) {
   )
 }
 
-function SettingsPanel({ code, roomData, onSaved, onClose, t }) {
+function SettingsPanel({ code, roomData, onSaved, onClose, onLeave, t }) {
   const { themeKey, setTheme, themes } = useTheme()
   const [name, setName] = useState(roomData?.name || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [confirmLeave, setConfirmLeave] = useState(false)
 
   async function save() {
     setSaving(true)
@@ -531,6 +532,41 @@ function SettingsPanel({ code, roomData, onSaved, onClose, t }) {
         >
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
+
+        {/* Leave this device — clears local session, keeps room for the partner */}
+        <div className="border-t border-slate-100 pt-4">
+          {!confirmLeave ? (
+            <button
+              onClick={() => setConfirmLeave(true)}
+              data-testid="leave-device"
+              className="w-full text-xs text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              Leave this device (keep room for partner)
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500 text-center leading-relaxed">
+                You'll be signed out here, but the room stays for your partner.
+                Get back in with your personal link or the room code.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={onLeave}
+                  data-testid="leave-device-confirm"
+                  className="flex-1 text-xs font-semibold text-white bg-slate-700 hover:bg-slate-800 rounded-lg py-2"
+                >
+                  Sign out
+                </button>
+                <button
+                  onClick={() => setConfirmLeave(false)}
+                  className="text-xs text-slate-500 hover:text-slate-700 px-3"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -711,6 +747,7 @@ export default function Dashboard({ ws, online = [] }) {
             if (updated.theme) ws?.send('room:theme', { theme: updated.theme })
           }}
           onClose={() => setShowSettings(false)}
+          onLeave={() => { store.clear(); nav('/') }}
           t={t}
         />
       )}

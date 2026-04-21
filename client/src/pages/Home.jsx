@@ -17,27 +17,38 @@ export default function Home() {
   const [error, setError] = useState('')
   const nav = useNavigate()
 
-  // Handle personal link: /?roomCode=XXXX&userId=YYYY
+  // Route on mount:
+  //   1. Personal link (?roomCode=X&userId=Y) → restore session and go to dashboard
+  //   2. Existing localStorage session → go straight to dashboard (Slack/Discord-style)
+  //   3. Otherwise → show the create/join form
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const rc = params.get('roomCode')
     const uid = params.get('userId')
-    if (!rc || !uid) return
-    // Restore to localStorage and go straight to dashboard
-    store.set('roomCode', rc.toUpperCase())
-    store.set('userId', uid)
-    api.get(`/rooms/${rc.toUpperCase()}`).then((data) => {
-      const member = data?.members?.find((m) => m.userId === uid)
-      if (member) {
-        store.set('userName', member.name)
-        store.set('roomData', data)
-        setTheme(data.theme || DEFAULT_THEME)
-        nav('/dashboard', { replace: true })
-      } else {
-        store.set('userId', '')
-        setError('This personal link is no longer valid.')
-      }
-    }).catch(() => setError('Could not connect. Try again.'))
+
+    if (rc && uid) {
+      store.set('roomCode', rc.toUpperCase())
+      store.set('userId', uid)
+      api.get(`/rooms/${rc.toUpperCase()}`).then((data) => {
+        const member = data?.members?.find((m) => m.userId === uid)
+        if (member) {
+          store.set('userName', member.name)
+          store.set('roomData', data)
+          setTheme(data.theme || DEFAULT_THEME)
+          nav('/dashboard', { replace: true })
+        } else {
+          store.set('userId', '')
+          setError('This personal link is no longer valid.')
+        }
+      }).catch(() => setError('Could not connect. Try again.'))
+      return
+    }
+
+    const storedCode = store.get('roomCode')
+    const storedUid = store.get('userId')
+    if (storedCode && storedUid) {
+      nav('/dashboard', { replace: true })
+    }
   }, [])
 
   async function handleCreate(e) {

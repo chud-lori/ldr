@@ -232,6 +232,56 @@ test.describe('Watch party queue', () => {
   })
 })
 
+test.describe('Root redirect & sign-out', () => {
+  test('root auto-forwards logged-in user to dashboard', async ({ browser, request }) => {
+    const { code, alice } = await bootstrapRoom(request)
+    const ctx = await browser.newContext()
+    const page = await ctx.newPage()
+    await page.goto('/')
+    await page.evaluate(({ code, userId, name }) => {
+      localStorage.setItem('roomCode', JSON.stringify(code))
+      localStorage.setItem('userId', JSON.stringify(userId))
+      localStorage.setItem('userName', JSON.stringify(name))
+      localStorage.setItem('seenWelcome', JSON.stringify('1'))
+    }, { code, userId: alice.userId, name: alice.name })
+
+    await page.goto('/')
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 5000 })
+    await ctx.close()
+  })
+
+  test('root still shows the form when no session exists', async ({ browser }) => {
+    const ctx = await browser.newContext()
+    const page = await ctx.newPage()
+    await page.goto('/')
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('heading', { name: 'LDR' })).toBeVisible()
+    // Form inputs visible
+    await expect(page.getByPlaceholder('Your name')).toBeVisible()
+    await ctx.close()
+  })
+
+  test('leave this device clears session and returns to home', async ({ browser, request }) => {
+    const { code, alice } = await bootstrapRoom(request)
+    const ctx = await browser.newContext()
+    const page = await enterRoom(ctx, { code, user: alice, timezone: 'Asia/Jakarta' })
+
+    // Open Room Settings
+    await page.getByTitle('Room settings').click()
+    await page.getByTestId('leave-device').click()
+    await page.getByTestId('leave-device-confirm').click()
+
+    await expect(page).toHaveURL(/\/$/, { timeout: 5000 })
+    const ls = await page.evaluate(() => ({
+      code: localStorage.getItem('roomCode'),
+      uid: localStorage.getItem('userId'),
+    }))
+    expect(ls.code).toBeNull()
+    expect(ls.uid).toBeNull()
+    await ctx.close()
+  })
+})
+
 test.describe('Draw page', () => {
   test('drawing a stroke persists and syncs to partner', async ({ browser, request }) => {
     const { code, alice, bob } = await bootstrapRoom(request)
