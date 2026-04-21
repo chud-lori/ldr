@@ -2,7 +2,7 @@
 
 A private web app for couples in long-distance relationships.
 
-**Features:** shared journal · YouTube watch party with chat · bucket list with surprise reveal · trivia · real-time collaborative puzzle
+**Features:** shared journal · YouTube watch party with queue + chat · bucket list with surprise reveal · trivia · collaborative puzzle · shared drawing canvas · per-partner timezone widget · "thinking of you" nudge · milestone countdowns · memory timeline
 
 ---
 

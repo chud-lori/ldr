@@ -13,6 +13,7 @@ type BucketItem struct {
 	Name      string        `bson:"name" json:"name"`
 	Text      string        `bson:"text" json:"text"`
 	Done      bool          `bson:"done" json:"done"`
+	DoneAt    *time.Time    `bson:"doneAt,omitempty" json:"doneAt,omitempty"`
 	Surprise  bool          `bson:"surprise" json:"surprise"`
 	RevealAt  *time.Time    `bson:"revealAt,omitempty" json:"revealAt,omitempty"`
 	CreatedAt time.Time     `bson:"createdAt" json:"createdAt"`

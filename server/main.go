@@ -77,6 +77,9 @@ func main() {
 
 			r.Get("/rooms/{code}/watchparty", handlers.GetWatchParty)
 			r.Put("/rooms/{code}/watchparty", handlers.SetWatchParty)
+			r.Post("/rooms/{code}/watchparty/queue", handlers.AddToQueue)
+			r.Delete("/rooms/{code}/watchparty/queue/{index}", handlers.RemoveFromQueue)
+			r.Post("/rooms/{code}/watchparty/next", handlers.PlayNext)
 			r.Get("/rooms/{code}/chat", handlers.GetChatHistory)
 
 			r.Get("/rooms/{code}/puzzle", handlers.GetPuzzle)
@@ -86,6 +89,11 @@ func main() {
 			r.Get("/rooms/{code}/milestones", handlers.GetMilestones)
 			r.Post("/rooms/{code}/milestones", handlers.AddMilestone)
 			r.Delete("/rooms/{code}/milestones/{id}", handlers.DeleteMilestone)
+
+			r.Get("/rooms/{code}/drawing", handlers.GetDrawing)
+			r.Delete("/rooms/{code}/drawing", handlers.ClearDrawing)
+
+			r.Get("/rooms/{code}/timeline", handlers.GetTimeline)
 		})
 	})
 

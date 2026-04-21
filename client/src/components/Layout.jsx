@@ -11,6 +11,8 @@ const nav = [
   { to: '/bucket', label: '🗺️ Bucket List' },
   { to: '/trivia', label: '🎯 Trivia' },
   { to: '/puzzle', label: '🧩 Puzzle' },
+  { to: '/draw', label: '✏️ Draw' },
+  { to: '/timeline', label: '📖 Timeline' },
 ]
 
 function UserSettings({ onClose, t }) {

@@ -45,7 +45,7 @@ func runCleanup() {
 	}
 
 	for _, r := range rooms {
-		for _, col := range []string{"journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle", "milestones"} {
+		for _, col := range []string{"journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle", "milestones", "drawing"} {
 			db.Col(col).DeleteMany(ctx, bson.M{"roomId": r.Code})
 		}
 		db.Col("rooms").DeleteOne(ctx, bson.M{"code": r.Code})

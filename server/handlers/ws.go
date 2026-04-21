@@ -149,6 +149,24 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 			case msg.Type == "nudge:send":
 				hub.Broadcast(code, outData, client)
 
+			case msg.Type == "draw:stroke":
+				var stroke models.Stroke
+				if err := json.Unmarshal(msg.Payload, &stroke); err != nil {
+					continue
+				}
+				stroke.UserID = uid
+				stroke.At = time.Now()
+				go AppendStroke(code, stroke)
+				hub.Broadcast(code, outData, client)
+
+			case msg.Type == "draw:clear":
+				go ClearStrokes(code)
+				hub.Broadcast(code, outData, client)
+
+			case msg.Type == "queue:changed":
+				// Fire-and-forget signal — partner re-fetches the watchparty.
+				hub.Broadcast(code, outData, client)
+
 			case msg.Type == "presence:request":
 				data := ws.MarshalMsg("presence:list", "", "", presenceList(hub, code))
 				select {

@@ -179,11 +179,11 @@ function TimezoneStrip({ ws, roomData, online, t }) {
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">🕐 Timezones</p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3" data-testid="timezone-grid">
         {members.map((m) => {
           const tz = resolveTz(m)
           return (
-            <div key={m.userId} className={`rounded-xl py-2.5 px-3 ${t.codeBg}`}>
+            <div key={m.userId} data-testid={`tz-entry-${m.userId}`} className={`rounded-xl py-2.5 px-3 ${t.codeBg}`}>
               <div className="text-xs text-slate-500 truncate">{m.name}</div>
               <div className={`text-xl font-bold ${t.accent} font-mono leading-tight`}>
                 {tz ? localTime(tz) : '—:—'}
@@ -610,6 +610,8 @@ export default function Dashboard({ ws, online = [] }) {
     { to: '/bucket', emoji: '🗺️', label: 'Bucket List', desc: 'Plan your next meetup' },
     { to: '/trivia', emoji: '🎯', label: 'Trivia', desc: 'How well do you know each other?' },
     { to: '/puzzle', emoji: '🧩', label: 'Puzzle', desc: 'Solve together in real-time' },
+    { to: '/draw', emoji: '✏️', label: 'Draw', desc: 'Shared canvas, live strokes' },
+    { to: '/timeline', emoji: '📖', label: 'Timeline', desc: 'Your story, together' },
   ]
 
   return (

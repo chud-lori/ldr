@@ -29,18 +29,25 @@ export default function WatchParty({ ws }) {
   const [videoUrl, setVideoUrl] = useState('')
   const [currentVideoId, setCurrentVideoId] = useState(null)
   const [pendingVideoId, setPendingVideoId] = useState(null)
+  const [queue, setQueue] = useState([])
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const chatBottomRef = useRef(null)
 
-  useEffect(() => {
-    api.get(`/rooms/${code}/watchparty`).then((data) => {
+  const refreshWatchParty = useCallback(async () => {
+    try {
+      const data = await api.get(`/rooms/${code}/watchparty`)
       if (data?.videoId) setCurrentVideoId(data.videoId)
-    }).catch(() => {})
+      setQueue(Array.isArray(data?.queue) ? data.queue : [])
+    } catch {}
+  }, [code])
+
+  useEffect(() => {
+    refreshWatchParty()
     api.get(`/rooms/${code}/chat`).then((data) => {
       if (Array.isArray(data)) setMessages(data)
     }).catch(() => {})
-  }, [code])
+  }, [code, refreshWatchParty])
 
   useEffect(() => {
     if (!currentVideoId) return
@@ -124,21 +131,53 @@ export default function WatchParty({ ws }) {
         userId: msg.userId, name: msg.name,
         text: msg.payload.text, createdAt: Date.now(),
       }])),
+      ws.on('queue:changed', () => refreshWatchParty()),
     ]
     return () => offs.forEach((off) => off())
-  }, [ws])
+  }, [ws, refreshWatchParty])
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  function setVideo() {
+  function playNow() {
     const vid = extractVideoId(videoUrl)
     if (!vid) return
     setCurrentVideoId(vid)
     api.put(`/rooms/${code}/watchparty`, { videoId: vid, title: '' })
     ws?.send('watch:video', { videoId: vid })
     setVideoUrl('')
+  }
+
+  async function addToQueue() {
+    const vid = extractVideoId(videoUrl)
+    if (!vid) return
+    try {
+      const wp = await api.post(`/rooms/${code}/watchparty/queue`, { videoId: vid, title: '' })
+      setQueue(wp?.queue || [])
+      ws?.send('queue:changed', {})
+      setVideoUrl('')
+    } catch {}
+  }
+
+  async function removeFromQueue(index) {
+    try {
+      const wp = await api.del(`/rooms/${code}/watchparty/queue/${index}`)
+      setQueue(wp?.queue || [])
+      ws?.send('queue:changed', {})
+    } catch {}
+  }
+
+  async function playNext() {
+    try {
+      const wp = await api.post(`/rooms/${code}/watchparty/next`, {})
+      if (wp?.videoId) {
+        setCurrentVideoId(wp.videoId)
+        ws?.send('watch:video', { videoId: wp.videoId })
+      }
+      setQueue(wp?.queue || [])
+      ws?.send('queue:changed', {})
+    } catch {}
   }
 
   function sendChat(e) {
@@ -151,20 +190,54 @@ export default function WatchParty({ ws }) {
 
   return (
     <div className="space-y-3">
-      <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100">
+      <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 space-y-2">
         <div className="flex gap-2">
           <input
             className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-slate-400"
             placeholder="Paste YouTube URL or video ID"
             value={videoUrl}
             onChange={(e) => setVideoUrl(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && setVideo()}
+            onKeyDown={(e) => e.key === 'Enter' && (currentVideoId ? addToQueue() : playNow())}
+            data-testid="video-url-input"
           />
-          <button onClick={setVideo} className={`${t.btn} px-4 rounded-xl text-sm font-medium`}>
-            Load
-          </button>
+          {currentVideoId ? (
+            <button onClick={addToQueue} data-testid="queue-add" className={`${t.btn} px-4 rounded-xl text-sm font-medium`}>
+              + Queue
+            </button>
+          ) : (
+            <button onClick={playNow} data-testid="play-now" className={`${t.btn} px-4 rounded-xl text-sm font-medium`}>
+              Play
+            </button>
+          )}
         </div>
       </div>
+
+      {queue.length > 0 && (
+        <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100" data-testid="queue-panel">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              📝 Up next · {queue.length}
+            </p>
+            <button onClick={playNext} data-testid="queue-next" className={`text-xs font-semibold ${t.accent} hover:underline`}>
+              Play next ▶
+            </button>
+          </div>
+          <ul className="space-y-1">
+            {queue.map((item, i) => (
+              <li key={i} className="flex items-center gap-2 text-sm text-slate-600 rounded-lg px-2 py-1.5 hover:bg-slate-50 group">
+                <span className="text-[10px] text-slate-400 tabular-nums w-4">{i + 1}</span>
+                <span className="flex-1 truncate font-mono text-xs">{item.videoId}</span>
+                <button
+                  onClick={() => removeFromQueue(i)}
+                  data-testid={`queue-remove-${i}`}
+                  className="text-slate-300 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Remove"
+                >×</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {pendingVideoId && (
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">

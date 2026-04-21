@@ -7,6 +7,13 @@ type WatchParty struct {
 	RoomID  string        `bson:"roomId" json:"roomId"`
 	VideoID string        `bson:"videoId" json:"videoId"`
 	Title   string        `bson:"title" json:"title"`
+	Queue   []QueueItem   `bson:"queue,omitempty" json:"queue,omitempty"`
+}
+
+type QueueItem struct {
+	VideoID string `bson:"videoId" json:"videoId"`
+	Title   string `bson:"title,omitempty" json:"title,omitempty"`
+	AddedBy string `bson:"addedBy" json:"addedBy"`
 }
 
 type ChatMessage struct {

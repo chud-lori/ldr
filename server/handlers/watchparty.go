@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -49,6 +50,102 @@ func SetWatchParty(w http.ResponseWriter, r *http.Request) {
 	db.Col("watchparty").UpdateOne(ctx, filter, update, opts)
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func AddToQueue(w http.ResponseWriter, r *http.Request) {
+	code := strings.ToUpper(chi.URLParam(r, "code"))
+	uid := userID(r)
+
+	var body struct {
+		VideoID string `json:"videoId"`
+		Title   string `json:"title"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+	body.VideoID = strings.TrimSpace(body.VideoID)
+	if body.VideoID == "" {
+		http.Error(w, "videoId required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	item := models.QueueItem{VideoID: body.VideoID, Title: body.Title, AddedBy: uid}
+	db.Col("watchparty").UpdateOne(ctx,
+		bson.M{"roomId": code},
+		bson.M{"$push": bson.M{"queue": item}, "$setOnInsert": bson.M{"roomId": code}},
+		options.UpdateOne().SetUpsert(true),
+	)
+
+	returnWatchParty(w, r.Context(), code, http.StatusCreated)
+}
+
+func RemoveFromQueue(w http.ResponseWriter, r *http.Request) {
+	code := strings.ToUpper(chi.URLParam(r, "code"))
+	idxStr := chi.URLParam(r, "index")
+
+	var idx int
+	if _, err := fmt.Sscanf(idxStr, "%d", &idx); err != nil || idx < 0 {
+		http.Error(w, "bad index", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	var wp models.WatchParty
+	if err := db.Col("watchparty").FindOne(ctx, bson.M{"roomId": code}).Decode(&wp); err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if idx >= len(wp.Queue) {
+		http.Error(w, "index out of range", http.StatusBadRequest)
+		return
+	}
+	wp.Queue = append(wp.Queue[:idx], wp.Queue[idx+1:]...)
+	db.Col("watchparty").UpdateOne(ctx,
+		bson.M{"roomId": code},
+		bson.M{"$set": bson.M{"queue": wp.Queue}},
+	)
+
+	returnWatchParty(w, r.Context(), code, http.StatusOK)
+}
+
+func PlayNext(w http.ResponseWriter, r *http.Request) {
+	code := strings.ToUpper(chi.URLParam(r, "code"))
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	var wp models.WatchParty
+	if err := db.Col("watchparty").FindOne(ctx, bson.M{"roomId": code}).Decode(&wp); err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if len(wp.Queue) == 0 {
+		http.Error(w, "queue empty", http.StatusBadRequest)
+		return
+	}
+	next := wp.Queue[0]
+	wp.Queue = wp.Queue[1:]
+	db.Col("watchparty").UpdateOne(ctx,
+		bson.M{"roomId": code},
+		bson.M{"$set": bson.M{
+			"videoId": next.VideoID,
+			"title":   next.Title,
+			"queue":   wp.Queue,
+		}},
+	)
+
+	returnWatchParty(w, r.Context(), code, http.StatusOK)
+}
+
+func returnWatchParty(w http.ResponseWriter, parent context.Context, code string, status int) {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	defer cancel()
+	var wp models.WatchParty
+	db.Col("watchparty").FindOne(ctx, bson.M{"roomId": code}).Decode(&wp)
+	respond(w, status, wp)
 }
 
 func GetChatHistory(w http.ResponseWriter, r *http.Request) {

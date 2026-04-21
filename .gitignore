@@ -25,3 +25,20 @@ dist-ssr
 
 .env
 redeploy.sh
+
+# Playwright
+test-results
+playwright-report
+blob-report
+.playwright
+.playwright-cache
+
+# Go build artifacts
+server/server
+server/ldr-server
+*.test
+*.out
+
+# Coverage
+coverage
+.nyc_output

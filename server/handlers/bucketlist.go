@@ -87,8 +87,21 @@ func UpdateBucketItem(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
+	set := bson.M{"done": body.Done, "text": body.Text}
+	unset := bson.M{}
+	if body.Done {
+		now := time.Now()
+		set["doneAt"] = now
+	} else {
+		unset["doneAt"] = ""
+	}
+	update := bson.M{"$set": set}
+	if len(unset) > 0 {
+		update["$unset"] = unset
+	}
+
 	filter := bson.M{"_id": id, "roomId": code, "userId": uid}
-	db.Col("bucketlist").UpdateOne(ctx, filter, bson.M{"$set": bson.M{"done": body.Done, "text": body.Text}})
+	db.Col("bucketlist").UpdateOne(ctx, filter, update)
 	w.WriteHeader(http.StatusNoContent)
 }
 

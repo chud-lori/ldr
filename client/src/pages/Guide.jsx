@@ -85,6 +85,7 @@ export default function Guide() {
         <p>Paste any YouTube URL or video ID. Both screens stay in sync — play, pause, and seek are broadcast in real time.</p>
         <p>When one person joins late, their player automatically catches up to where the other person is.</p>
         <p>If your partner loads a new video while you're watching, you'll get a prompt to switch or stay — no surprise interruptions.</p>
+        <p>Already watching something? The <strong>+ Queue</strong> button lines up the next video. Either of you can remove entries or tap <strong>Play next ▶</strong> — the queue syncs between you instantly.</p>
         <p>Chat is saved per room (not per video), so your conversation history stays.</p>
       </Section>
 
@@ -102,6 +103,27 @@ export default function Guide() {
       <Section emoji="🧩" title="Puzzle">
         <p>Paste an image URL and pick a grid size (3×3 to 5×5). Both of you see the same shuffled puzzle.</p>
         <p>Tap a piece to select it (highlighted in amber), then tap another piece to swap them. Work together to solve it — moves sync in real time.</p>
+      </Section>
+
+      <Section emoji="✏️" title="Draw">
+        <p>A shared canvas. Pick a color and stroke width, draw with your mouse or finger, and each finished stroke appears on your partner's screen instantly.</p>
+        <p>Strokes are saved per room, so you can come back later and keep adding. <strong>Clear canvas</strong> wipes everything for both of you.</p>
+      </Section>
+
+      <Section emoji="🕐" title="Timezones & Thinking of you">
+        <p>The Dashboard shows each of you with your current local time, detected automatically from your device. It refreshes every minute.</p>
+        <p>Tap <strong>💗 Thinking of {'{name}'}</strong> (only enabled when your partner is online) to send a silent ping — their tab shows a toast, a soft pink pulse, and on phones a tiny vibration. It has a short cooldown so it stays meaningful.</p>
+      </Section>
+
+      <Section emoji="📅" title="Milestones">
+        <p>Count down to the moments that matter — a visit ✈️, anniversary 💝, birthday 🎂, or anything else 📌. Tap <strong>+ Add</strong>, fill in the title and date, pick a kind, and save.</p>
+        <p>Upcoming milestones show their countdown on the Dashboard and sort by nearest first. Past milestones automatically move into your timeline.</p>
+      </Section>
+
+      <Section emoji="📖" title="Timeline">
+        <p>A running memory of your story together, auto-assembled from:</p>
+        <p className="pl-4">• Milestones you've passed<br/>• Bucket-list items you've ticked off<br/>• Days you both wrote in the journal</p>
+        <p>Grouped by month, newest first. Nothing to configure — as you use the app, the timeline fills itself.</p>
       </Section>
 
       <Section emoji="🎨" title="Theme">

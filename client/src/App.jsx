@@ -12,6 +12,8 @@ import WatchParty from './pages/WatchParty'
 import BucketList from './pages/BucketList'
 import Trivia from './pages/Trivia'
 import Puzzle from './pages/Puzzle'
+import Draw from './pages/Draw'
+import Timeline from './pages/Timeline'
 import Guide from './pages/Guide'
 
 function RequireRoom({ children }) {
@@ -92,6 +94,8 @@ function AppRoutes() {
                 <Route path="/bucket" element={<BucketList />} />
                 <Route path="/trivia" element={<Trivia ws={ws} />} />
                 <Route path="/puzzle" element={<Puzzle ws={ws} />} />
+                <Route path="/draw" element={<Draw ws={ws} />} />
+                <Route path="/timeline" element={<Timeline />} />
                 <Route path="/guide" element={<Guide />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>

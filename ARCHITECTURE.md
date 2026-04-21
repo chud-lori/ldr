@@ -93,17 +93,19 @@ Runs in a background goroutine. Waits 10 minutes after startup, then runs every 
 
 ## Database
 
-One MongoDB database, eight collections:
+One MongoDB database, ten collections:
 
 | Collection | Key fields | Notes |
 |---|---|---|
-| `rooms` | `code`, `members[]`, `theme`, `lastActiveAt`, `createdAt` | Max 2 members enforced at join time |
+| `rooms` | `code`, `members[].{userId,name,timezone}`, `theme`, `lastActiveAt`, `createdAt` | Max 2 members. Member timezone is upserted from the WS `tz` query param on connect |
 | `journal` | `roomId`, `userId`, `date`, `content`, `mood` | Upsert on (roomId, userId, date). Partner entry hidden until both have written |
-| `bucketlist` | `roomId`, `userId`, `text`, `done`, `surprise`, `revealAt` | Surprise items hide text from partner until revealAt |
+| `bucketlist` | `roomId`, `userId`, `text`, `done`, `doneAt`, `surprise`, `revealAt` | Surprise items hide text from partner until revealAt. `doneAt` feeds the timeline |
 | `trivia` | `roomId`, `userId`, `question`, `answer`, `attempts[]` | One attempt per answerer; answer revealed on wrong |
-| `watchparty` | `roomId`, `videoId`, `title` | Only latest video stored; chat is separate |
+| `watchparty` | `roomId`, `videoId`, `title`, `queue[].{videoId,title,addedBy}` | Current video + shared queue. Queue mutates via REST, `queue:changed` WS event tells partner to refetch |
 | `chat` | `roomId`, `userId`, `name`, `text`, `createdAt` | Persists across sessions |
 | `puzzle` | `roomId`, `imageUrl`, `gridSize`, `pieces[]`, `completed` | Piece positions persist; moves sync via WS |
+| `milestones` | `roomId`, `userId`, `title`, `date`, `kind` | `kind` ∈ visit/anniversary/birthday/custom. Dashboard shows upcoming; timeline shows past |
+| `drawing` | `roomId`, `strokes[].{userId,color,width,points,at}`, `updatedAt` | One doc per room. Strokes stream via WS, capped at 2000 / stroke (4000 points max) |
 
 Room codes are 6-character strings from the charset `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (ambiguous characters I, O, 0, 1 excluded). User IDs are 8-character strings from the same charset.
 
@@ -169,17 +171,22 @@ All routes except `/` are wrapped in `RequireRoom`.
 
 | Event type | Direction | Payload | Description |
 |---|---|---|---|
-| `presence:list` | server → all | `[{userId, name}]` | Sent on WS connect and disconnect |
+| `presence:list` | server → all | `[{userId, name, timezone}]` | Sent on WS connect and disconnect. `timezone` is IANA zone from the client's `Intl` |
+| `presence:request` | client → server | — | Ask the server to resend the current presence list (handles connect races) |
 | `room:theme` | client → others | `{theme}` | Theme change |
 | `watch:play` | client → others | `{time}` | Play at timestamp |
 | `watch:pause` | client → others | `{time}` | Pause at timestamp |
 | `watch:video` | client → others | `{videoId}` | Request to change video |
 | `watch:request-sync` | client → others | — | Ask for current playback state |
 | `watch:sync` | client → others | `{time, playing}` | Reply with current state |
+| `queue:changed` | client → others | — | Signal partner to refetch the shared watch-party queue |
 | `chat:send` | client → others | `{text}` | Chat message (also persisted) |
 | `trivia:answer` | client → others | — | Trigger reload of trivia list |
 | `puzzle:move` | client → others | `{pieceId, currentX, currentY}` | Piece swap (also persisted) |
 | `puzzle:reset` | client → others | — | New puzzle created |
+| `nudge:send` | client → others | `{emoji}` | "Thinking of you" — partner gets toast + page pulse + vibration |
+| `draw:stroke` | client → others | `{color, width, points}` | Completed stroke, points normalized 0..1 (also persisted) |
+| `draw:clear` | client → others | — | Wipe the canvas (also persisted) |
 | `ping` | client → server | — | Keepalive; not forwarded |
 
 `watch:video` events are not auto-applied on the receiver if a video is already playing — a banner prompts the user to switch or stay.
