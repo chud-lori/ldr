@@ -760,6 +760,212 @@ mode_exploits() {
 }
 
 # ==============================================================================
+# MODE: config — manage the user config file without opening an editor
+# ==============================================================================
+
+_cfg_ensure_dir() {
+    local d; d=$(dirname "$MILOG_CONFIG")
+    mkdir -p "$d" 2>/dev/null || {
+        echo -e "${R}Cannot create config directory: $d${NC}" >&2; return 1; }
+}
+
+# Read LOGS array as defined LITERALLY in the config file (ignores the
+# hardcoded script defaults). Outputs one app per line; empty if no LOGS= line.
+_cfg_read_logs() {
+    [[ -f "$MILOG_CONFIG" ]] || return 0
+    (
+        LOGS=()
+        # shellcheck disable=SC1090
+        . "$MILOG_CONFIG" 2>/dev/null || true
+        (( ${#LOGS[@]} > 0 )) && printf '%s\n' "${LOGS[@]}"
+    )
+}
+
+# Replace or append a single-line assignment `KEY=VALUE` in the config file.
+_cfg_write_line() {
+    local line="$1" key="${1%%=*}"
+    _cfg_ensure_dir || return 1
+    [[ -e "$MILOG_CONFIG" ]] || : > "$MILOG_CONFIG"
+    if grep -qE "^[[:space:]]*${key}=" "$MILOG_CONFIG" 2>/dev/null; then
+        local tmp; tmp=$(mktemp)
+        awk -v k="$key" -v repl="$line" '
+            $0 ~ "^[[:space:]]*" k "=" && !done { print repl; done=1; next }
+            { print }
+        ' "$MILOG_CONFIG" > "$tmp" && mv "$tmp" "$MILOG_CONFIG"
+    else
+        printf '%s\n' "$line" >> "$MILOG_CONFIG"
+    fi
+}
+
+config_show() {
+    echo -e "${W}Config path:${NC} $MILOG_CONFIG"
+    if [[ -f "$MILOG_CONFIG" ]]; then
+        echo -e "${D}  (exists)${NC}"
+    else
+        echo -e "${D}  (not created yet — run 'milog config init')${NC}"
+    fi
+    echo
+    echo -e "${W}Resolved values:${NC}"
+    printf "  %-22s %s\n" "LOG_DIR"          "$LOG_DIR"
+    printf "  %-22s (%s)\n" "LOGS"           "${LOGS[*]}"
+    printf "  %-22s %s\n" "REFRESH"          "$REFRESH"
+    printf "  %-22s %s\n" "SPARK_LEN"        "$SPARK_LEN"
+    printf "  %-22s warn=%s crit=%s\n" "req/min"  "$THRESH_REQ_WARN"  "$THRESH_REQ_CRIT"
+    printf "  %-22s warn=%s crit=%s\n" "cpu"      "$THRESH_CPU_WARN"  "$THRESH_CPU_CRIT"
+    printf "  %-22s warn=%s crit=%s\n" "mem"      "$THRESH_MEM_WARN"  "$THRESH_MEM_CRIT"
+    printf "  %-22s warn=%s crit=%s\n" "disk"     "$THRESH_DISK_WARN" "$THRESH_DISK_CRIT"
+    printf "  %-22s 4xx=%s 5xx=%s\n"   "status thresholds" "$THRESH_4XX_WARN" "$THRESH_5XX_WARN"
+}
+
+config_init() {
+    if [[ -e "$MILOG_CONFIG" ]]; then
+        echo -e "${Y}Config already exists:${NC} $MILOG_CONFIG"
+        echo "Use 'milog config edit' to modify, or delete the file first."
+        return 1
+    fi
+    _cfg_ensure_dir || return 1
+    cat > "$MILOG_CONFIG" <<'EOF'
+# MiLog config — sourced as bash. Overrides defaults from milog.sh.
+# Uncomment a line to activate it.
+
+# Directory containing nginx access logs
+# LOG_DIR="/var/log/nginx"
+
+# Apps to monitor (basenames of <name>.access.log).
+# Leave empty () to auto-discover all *.access.log in LOG_DIR.
+# LOGS=(api web admin)
+
+# Dashboard refresh interval (seconds) and sparkline history depth
+# REFRESH=5
+# SPARK_LEN=30
+
+# Thresholds
+# THRESH_REQ_WARN=15
+# THRESH_REQ_CRIT=40
+# THRESH_CPU_WARN=70
+# THRESH_CPU_CRIT=90
+# THRESH_MEM_WARN=80
+# THRESH_MEM_CRIT=95
+# THRESH_DISK_WARN=80
+# THRESH_DISK_CRIT=95
+# THRESH_4XX_WARN=20
+# THRESH_5XX_WARN=5
+EOF
+    echo -e "${G}Created${NC} $MILOG_CONFIG"
+    echo "Edit with 'milog config edit' or set values with 'milog config set <KEY> <VALUE>'."
+}
+
+config_edit() {
+    _cfg_ensure_dir || return 1
+    [[ -e "$MILOG_CONFIG" ]] || config_init >/dev/null
+    "${EDITOR:-vi}" "$MILOG_CONFIG"
+}
+
+config_path() {
+    echo "$MILOG_CONFIG"
+}
+
+config_set() {
+    local key="$1" val="$2"
+    if [[ -z "$key" || $# -lt 2 ]]; then
+        echo -e "${R}Usage:${NC} milog config set <KEY> <VALUE>"
+        return 1
+    fi
+    # Numeric values unquoted; strings double-quoted; empty string → ""
+    local quoted
+    if [[ "$val" =~ ^-?[0-9]+$ ]]; then
+        quoted="$val"
+    else
+        # Escape any embedded double-quotes
+        quoted="\"${val//\"/\\\"}\""
+    fi
+    _cfg_write_line "${key}=${quoted}"
+    echo -e "${G}Set${NC} ${key}=${quoted} in $MILOG_CONFIG"
+}
+
+config_add() {
+    local name="$1"
+    [[ -z "$name" ]] && { echo -e "${R}Usage:${NC} milog config add <app>"; return 1; }
+    local -a cur=()
+    local l
+    while IFS= read -r l; do [[ -n "$l" ]] && cur+=("$l"); done < <(_cfg_read_logs)
+    if (( ${#cur[@]} > 0 )); then
+        for l in "${cur[@]}"; do
+            [[ "$l" == "$name" ]] && { echo -e "${Y}Already present:${NC} $name"; return 0; }
+        done
+    fi
+    cur+=("$name")
+    _cfg_write_line "LOGS=(${cur[*]})"
+    echo -e "${G}Added${NC} '$name' → LOGS=(${cur[*]})"
+    local f="$LOG_DIR/$name.access.log"
+    [[ -f "$f" ]] || echo -e "${D}  note: $f does not exist yet${NC}"
+}
+
+config_rm() {
+    local name="$1"
+    [[ -z "$name" ]] && { echo -e "${R}Usage:${NC} milog config rm <app>"; return 1; }
+    local -a cur=() new=()
+    local l found=0
+    while IFS= read -r l; do [[ -n "$l" ]] && cur+=("$l"); done < <(_cfg_read_logs)
+    if (( ${#cur[@]} > 0 )); then
+        for l in "${cur[@]}"; do
+            if [[ "$l" == "$name" ]]; then found=1; else new+=("$l"); fi
+        done
+    fi
+    if (( ! found )); then
+        echo -e "${Y}Not present in config LOGS:${NC} $name"
+        echo -e "${D}  current: (${cur[*]})${NC}"
+        return 1
+    fi
+    _cfg_write_line "LOGS=(${new[*]})"
+    echo -e "${G}Removed${NC} '$name' → LOGS=(${new[*]})"
+}
+
+config_dir() {
+    local dir="$1"
+    [[ -z "$dir" ]] && { echo -e "${R}Usage:${NC} milog config dir <path>"; return 1; }
+    config_set LOG_DIR "$dir"
+}
+
+config_help() {
+    echo -e "
+${W}milog config${NC} — edit the user config without opening a text editor
+
+${W}USAGE${NC}
+  ${C}milog config${NC}                         show resolved values + config path
+  ${C}milog config path${NC}                    print config file path
+  ${C}milog config init${NC}                    write a commented template
+  ${C}milog config edit${NC}                    open in \$EDITOR  ${D}(escape hatch)${NC}
+  ${C}milog config add <app>${NC}               append to LOGS
+  ${C}milog config rm  <app>${NC}               remove from LOGS
+  ${C}milog config dir <path>${NC}              set LOG_DIR
+  ${C}milog config set <KEY> <VALUE>${NC}       set any variable ${D}(REFRESH, THRESH_*, …)${NC}
+
+${W}EXAMPLES${NC}
+  milog config add api
+  milog config dir /var/log/nginx
+  milog config set REFRESH 3
+  milog config set THRESH_REQ_CRIT 60
+"
+}
+
+mode_config() {
+    local sub="${1:-show}"; shift 2>/dev/null || true
+    case "$sub" in
+        ""|show)        config_show ;;
+        path)           config_path ;;
+        init)           config_init ;;
+        edit)           config_edit ;;
+        add)            config_add "${1:-}" ;;
+        rm|remove|del)  config_rm  "${1:-}" ;;
+        dir)            config_dir "${1:-}" ;;
+        set)            config_set "${1:-}" "${2:-}" ;;
+        -h|--help|help) config_help ;;
+        *) echo -e "${R}Unknown config subcommand:${NC} $sub"; config_help; exit 1 ;;
+    esac
+}
+
+# ==============================================================================
 # COLOR PREFIX — merged initial dump sorted by nginx timestamp, then live tails
 # ==============================================================================
 color_prefix() {
@@ -836,6 +1042,15 @@ ${W}ANALYSIS${NC}
   ${C}stats <app>${NC}        hourly request histogram
   ${C}suspects [N] [W]${NC}   heuristic bot ranking ${D}(top N=20, window=2000 lines/app)${NC}
 
+${W}CONFIG${NC}
+  ${C}config${NC}             show resolved config + path
+  ${C}config init${NC}        create template config file
+  ${C}config add <app>${NC}   append app to LOGS
+  ${C}config rm  <app>${NC}   remove app from LOGS
+  ${C}config dir <path>${NC}  set LOG_DIR
+  ${C}config set <K> <V>${NC} set any variable (REFRESH, THRESH_*, …)
+  ${C}config edit${NC}        open in \$EDITOR
+
 ${W}TAILING${NC}
   ${C}(none) / logs${NC}      tail all logs, color prefixed  ${D}<- default${NC}
   ${C}errors${NC}             4xx/5xx lines only
@@ -872,6 +1087,7 @@ case "${1:-}" in
     exploits) mode_exploits ;;
     probes)   mode_probes ;;
     suspects) mode_suspects "${2:-20}" "${3:-2000}" ;;
+    config)   shift; mode_config "$@" ;;
     -h|--help|help) show_help ;;
     ""|logs)  color_prefix ;;
     *)

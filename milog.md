@@ -41,7 +41,23 @@ MiLog resolves settings in this order (later wins):
 3. Environment variables
 4. Auto-discovery (only if `LOGS` ends up empty)
 
-### Config file
+### Fastest path: `milog config` subcommands
+
+You don't need to open the config file in a text editor.
+
+```bash
+milog config init              # create a commented template
+milog config add api           # append app to LOGS
+milog config add web
+milog config rm old            # remove an app
+milog config dir /var/log/nginx
+milog config set REFRESH 3
+milog config set THRESH_REQ_CRIT 60
+milog config                   # show resolved values + path
+milog config edit              # open $EDITOR as escape hatch
+```
+
+### Config file (manual editing)
 
 ```bash
 mkdir -p ~/.config/milog
