@@ -25,7 +25,11 @@ func presenceList(hub *ws.Hub, roomID string) []map[string]string {
 			continue
 		}
 		seen[c.ID] = true
-		list = append(list, map[string]string{"userId": c.ID, "name": c.Name})
+		list = append(list, map[string]string{
+			"userId":   c.ID,
+			"name":     c.Name,
+			"timezone": c.Timezone,
+		})
 	}
 	return list
 }
@@ -35,6 +39,7 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 		code := strings.ToUpper(chi.URLParam(r, "code"))
 		uid := r.URL.Query().Get("userId")
 		name := r.URL.Query().Get("name")
+		tz := r.URL.Query().Get("tz")
 
 		// Verify caller is a member before upgrading to WebSocket.
 		{
@@ -55,23 +60,28 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 		}
 
 		client := &ws.Client{
-			ID:     uid,
-			Name:   name,
-			RoomID: code,
-			Send:   make(chan []byte, 64),
+			ID:       uid,
+			Name:     name,
+			Timezone: tz,
+			RoomID:   code,
+			Send:     make(chan []byte, 64),
 		}
 
 		// Register blocks until the client is fully in the hub.
 		hub.Register(client)
 
-		// Touch lastActiveAt — non-blocking.
+		// Touch lastActiveAt and persist timezone — non-blocking.
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			now := time.Now()
+			set := bson.M{"lastActiveAt": now}
+			if tz != "" {
+				set["members.$.timezone"] = tz
+			}
 			db.Col("rooms").UpdateOne(ctx,
-				bson.M{"code": code},
-				bson.M{"$set": bson.M{"lastActiveAt": now}},
+				bson.M{"code": code, "members.userId": uid},
+				bson.M{"$set": set},
 			)
 		}()
 
@@ -134,6 +144,9 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 				}
 
 			case msg.Type == "trivia:answer":
+				hub.Broadcast(code, outData, client)
+
+			case msg.Type == "nudge:send":
 				hub.Broadcast(code, outData, client)
 
 			case msg.Type == "presence:request":

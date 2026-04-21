@@ -6,10 +6,11 @@ import (
 )
 
 type Client struct {
-	ID     string
-	Name   string
-	RoomID string
-	Send   chan []byte
+	ID       string
+	Name     string
+	Timezone string
+	RoomID   string
+	Send     chan []byte
 }
 
 type Message struct {

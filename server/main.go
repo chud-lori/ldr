@@ -82,6 +82,10 @@ func main() {
 			r.Get("/rooms/{code}/puzzle", handlers.GetPuzzle)
 			r.Post("/rooms/{code}/puzzle", handlers.CreatePuzzle)
 			r.Delete("/rooms/{code}/puzzle", handlers.ResetPuzzle)
+
+			r.Get("/rooms/{code}/milestones", handlers.GetMilestones)
+			r.Post("/rooms/{code}/milestones", handlers.AddMilestone)
+			r.Delete("/rooms/{code}/milestones/{id}", handlers.DeleteMilestone)
 		})
 	})
 

@@ -18,6 +18,7 @@ type Room struct {
 }
 
 type Member struct {
-	UserID string `bson:"userId" json:"userId"`
-	Name   string `bson:"name" json:"name"`
+	UserID   string `bson:"userId" json:"userId"`
+	Name     string `bson:"name" json:"name"`
+	Timezone string `bson:"timezone,omitempty" json:"timezone,omitempty"`
 }

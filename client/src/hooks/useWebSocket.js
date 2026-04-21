@@ -12,11 +12,12 @@ export function useWebSocket(roomCode) {
     if (!roomCode) return
     const uid = store.get('userId') || ''
     const name = encodeURIComponent(store.get('userName') || 'unknown')
+    const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || '')
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
     // In dev, connect directly to Go server to avoid Vite proxy EPIPE noise.
     // In production, same host/port as the page (nginx proxies /ws/).
     const host = import.meta.env.DEV ? `${location.hostname}:8080` : location.host
-    const url = `${protocol}://${host}/ws/${roomCode}?userId=${uid}&name=${name}`
+    const url = `${protocol}://${host}/ws/${roomCode}?userId=${uid}&name=${name}&tz=${tz}`
 
     const ws = new WebSocket(url)
     wsRef.current = ws

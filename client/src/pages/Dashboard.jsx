@@ -125,6 +125,264 @@ function WelcomeBanner({ code, t }) {
   )
 }
 
+function formatTZ(tz) {
+  if (!tz) return ''
+  const parts = tz.split('/')
+  return parts[parts.length - 1].replace(/_/g, ' ')
+}
+
+function localTime(tz) {
+  try {
+    return new Date().toLocaleTimeString([], {
+      timeZone: tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  } catch {
+    return '—:—'
+  }
+}
+
+function TimezoneStrip({ ws, roomData, online, t }) {
+  const [, setTick] = useState(0)
+  const [sent, setSent] = useState(false)
+  const [cooling, setCooling] = useState(false)
+  const uid = store.get('userId')
+
+  useEffect(() => {
+    const timer = setInterval(() => setTick((n) => n + 1), 60000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const members = roomData?.members || []
+  if (members.length === 0) return null
+
+  const resolveTz = (m) => {
+    if (m.userId === uid) return Intl.DateTimeFormat().resolvedOptions().timeZone
+    const live = online.find((u) => u.userId === m.userId)?.timezone
+    return live || m.timezone || ''
+  }
+
+  const partner = members.find((m) => m.userId !== uid)
+  const partnerOnline = partner && online.some((u) => u.userId === partner.userId)
+
+  function sendNudge() {
+    if (cooling || !ws?.connected || !partnerOnline) return
+    ws.send('nudge:send', { emoji: '💗' })
+    setSent(true)
+    setCooling(true)
+    setTimeout(() => setSent(false), 2000)
+    setTimeout(() => setCooling(false), 5000)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">🕐 Timezones</p>
+      <div className="grid grid-cols-2 gap-3">
+        {members.map((m) => {
+          const tz = resolveTz(m)
+          return (
+            <div key={m.userId} className={`rounded-xl py-2.5 px-3 ${t.codeBg}`}>
+              <div className="text-xs text-slate-500 truncate">{m.name}</div>
+              <div className={`text-xl font-bold ${t.accent} font-mono leading-tight`}>
+                {tz ? localTime(tz) : '—:—'}
+              </div>
+              <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                {tz ? formatTZ(tz) : 'not yet online'}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {partner && (
+        <button
+          onClick={sendNudge}
+          disabled={cooling || !ws?.connected || !partnerOnline}
+          className={`w-full rounded-xl py-2.5 text-sm font-semibold transition-all ${
+            sent
+              ? 'bg-emerald-50 text-emerald-600'
+              : `${t.btn} disabled:opacity-50 disabled:cursor-not-allowed`
+          }`}
+          title={partnerOnline
+            ? `Send ${partner.name} a thought`
+            : `${partner.name} is offline right now`}
+        >
+          {sent
+            ? '✓ Sent 💗'
+            : partnerOnline
+              ? `💗 Thinking of ${partner.name}`
+              : `${partner.name} is offline`}
+        </button>
+      )}
+    </div>
+  )
+}
+
+const KIND_META = {
+  visit:       { emoji: '✈️', label: 'Visit' },
+  anniversary: { emoji: '💝', label: 'Anniversary' },
+  birthday:    { emoji: '🎂', label: 'Birthday' },
+  custom:      { emoji: '📌', label: 'Other' },
+}
+
+function shortDiff(target) {
+  const ms = new Date(target) - Date.now()
+  if (ms <= 0) return null
+  const d = Math.floor(ms / 86400000)
+  const h = Math.floor((ms % 86400000) / 3600000)
+  if (d >= 1) return `${d}d ${h}h`
+  const m = Math.floor((ms % 3600000) / 60000)
+  return `${h}h ${m}m`
+}
+
+function MilestonesCard({ code, t }) {
+  const [items, setItems] = useState([])
+  const [loaded, setLoaded] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [title, setTitle] = useState('')
+  const [date, setDate] = useState('')
+  const [kind, setKind] = useState('visit')
+  const [saving, setSaving] = useState(false)
+  const [, setTick] = useState(0)
+
+  async function load() {
+    try {
+      const data = await api.get(`/rooms/${code}/milestones`)
+      setItems(Array.isArray(data) ? data : [])
+    } catch {}
+    setLoaded(true)
+  }
+
+  useEffect(() => { load() }, [code])
+
+  // Re-render countdowns every minute
+  useEffect(() => {
+    const timer = setInterval(() => setTick((n) => n + 1), 60000)
+    return () => clearInterval(timer)
+  }, [])
+
+  async function save(e) {
+    e.preventDefault()
+    if (!title.trim() || !date || saving) return
+    setSaving(true)
+    try {
+      await api.post(`/rooms/${code}/milestones`, { title: title.trim(), date, kind })
+      setTitle(''); setDate(''); setKind('visit'); setAdding(false)
+      await load()
+    } catch {}
+    setSaving(false)
+  }
+
+  async function remove(id) {
+    await api.del(`/rooms/${code}/milestones/${id}`)
+    setItems((prev) => prev.filter((m) => m.id !== id))
+  }
+
+  const upcoming = items
+    .filter((m) => new Date(m.date) > Date.now())
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+
+  if (!loaded) return null
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-slate-700">📅 Milestones</h3>
+        {!adding && (
+          <button onClick={() => setAdding(true)} className={`text-xs font-medium ${t.accent}`}>
+            + Add
+          </button>
+        )}
+      </div>
+
+      {upcoming.length === 0 && !adding && (
+        <p className="text-sm text-slate-400 text-center py-2">No upcoming milestones</p>
+      )}
+
+      {upcoming.length > 0 && (
+        <ul className="space-y-1.5">
+          {upcoming.map((m) => {
+            const meta = KIND_META[m.kind] || KIND_META.custom
+            const diff = shortDiff(m.date)
+            return (
+              <li key={m.id} className={`flex items-center gap-3 rounded-xl px-3 py-2 ${t.codeBg} group`}>
+                <span className="text-lg">{meta.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-slate-700 truncate">{m.title}</div>
+                  <div className="text-[11px] text-slate-400">
+                    {new Date(m.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </div>
+                </div>
+                <div className={`text-sm font-semibold ${t.accent} tabular-nums`}>{diff}</div>
+                <button
+                  onClick={() => remove(m.id)}
+                  className="text-slate-300 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {adding && (
+        <form onSubmit={save} className="space-y-2 pt-1">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="What are we counting down to?"
+            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-slate-400 text-slate-700"
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-slate-400 text-slate-700"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            {Object.entries(KIND_META).map(([key, meta]) => (
+              <button
+                type="button"
+                key={key}
+                onClick={() => setKind(key)}
+                className={`flex-1 flex items-center justify-center gap-1 rounded-xl py-1.5 text-xs font-medium border-2 transition-all ${
+                  kind === key ? `border-slate-700 ${t.codeBg}` : 'border-transparent bg-slate-50 text-slate-500'
+                }`}
+                title={meta.label}
+              >
+                <span>{meta.emoji}</span>
+                <span className="hidden sm:inline">{meta.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={saving || !title.trim() || !date}
+              className={`flex-1 ${t.btn} rounded-xl py-2 text-sm font-semibold disabled:opacity-50`}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAdding(false); setTitle(''); setDate(''); setKind('visit') }}
+              className="px-4 rounded-xl text-sm text-slate-500 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
 function Countdown({ target, t }) {
   const [diff, setDiff] = useState(null)
 
@@ -410,6 +668,8 @@ export default function Dashboard({ ws, online = [] }) {
         </div>
       </div>
 
+      <TimezoneStrip ws={ws} roomData={roomData} online={online} t={t} />
+
       {/* Meetup countdown */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
         <h3 className="font-semibold text-slate-700 mb-3">💗 Next Meetup</h3>
@@ -423,6 +683,8 @@ export default function Dashboard({ ws, online = [] }) {
           <button onClick={saveMeetup} className={`${t.btn} px-4 rounded-xl text-sm font-medium`}>Set</button>
         </div>
       </div>
+
+      <MilestonesCard code={code} t={t} />
 
       <StatsCard code={code} roomData={roomData} t={t} />
 

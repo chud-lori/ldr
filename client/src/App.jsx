@@ -62,6 +62,21 @@ function AppRoutes() {
     return off
   }, [ws, setTheme, toast])
 
+  // "Thinking of you" — partner nudge
+  useEffect(() => {
+    if (!ws) return
+    const off = ws.on('nudge:send', (msg) => {
+      if (msg.userId === uid) return
+      const emoji = msg.payload?.emoji || '💗'
+      const who = msg.name || 'Your person'
+      toast(`${who} is thinking of you ${emoji}`, 'success')
+      document.body.classList.add('nudge-pulse')
+      setTimeout(() => document.body.classList.remove('nudge-pulse'), 1500)
+      if ('vibrate' in navigator) navigator.vibrate?.(80)
+    })
+    return off
+  }, [ws, uid, toast])
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />

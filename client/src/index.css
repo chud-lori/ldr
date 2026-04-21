@@ -17,3 +17,13 @@ input, textarea, select {
 button, a, [role="button"] {
   touch-action: manipulation;
 }
+
+/* "Thinking of you" nudge — subtle full-page pulse on receive */
+@keyframes nudge-pulse {
+  0%   { box-shadow: inset 0 0 0 0 rgba(244, 114, 182, 0); }
+  30%  { box-shadow: inset 0 0 120px 20px rgba(244, 114, 182, 0.28); }
+  100% { box-shadow: inset 0 0 0 0 rgba(244, 114, 182, 0); }
+}
+.nudge-pulse {
+  animation: nudge-pulse 1.5s ease-out;
+}

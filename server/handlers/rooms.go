@@ -245,7 +245,7 @@ func DeleteRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete room and all associated data
-	for _, col := range []string{"rooms", "journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle"} {
+	for _, col := range []string{"rooms", "journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle", "milestones"} {
 		db.Col(col).DeleteMany(ctx, bson.M{"roomId": code})
 	}
 	db.Col("rooms").DeleteOne(ctx, bson.M{"code": code})
