@@ -7,7 +7,7 @@ import {
   Settings, X, Plus, Heart, Clock, Link2, CalendarHeart,
   Flame, BookOpen, BookMarked, Tv, ListChecks, HelpCircle, PuzzleIcon,
   Pencil, History, AlertTriangle, Sprout, Sparkles, Zap, Check, Copy,
-  Cake, Plane, Pin, Lock, Music2,
+  Cake, Plane, Pin, Lock, Music2, Smile, HandHeart,
 } from '../lib/icons'
 import { maybeRequestPermission } from '../lib/notify'
 
@@ -244,6 +244,195 @@ function TimezoneStrip({ ws, roomData, online, t }) {
           </span>
         </button>
       )}
+    </div>
+  )
+}
+
+const MOODS = ['😊', '😔', '😍', '😴', '🥰', '😤', '😢', '🤩', '😌', '🥺']
+
+function shortAgo(iso) {
+  if (!iso) return ''
+  const ms = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(ms / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+function MoodCard({ ws, roomData, t }) {
+  const uid = store.get('userId')
+  const code = store.get('roomCode')
+  const [moods, setMoods] = useState([])
+  const [picking, setPicking] = useState(false)
+
+  const refresh = useCallback(() => {
+    api.get(`/rooms/${code}/moods`).then((data) => {
+      setMoods(Array.isArray(data) ? data : [])
+    }).catch(() => {})
+  }, [code])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  useEffect(() => {
+    if (!ws) return
+    return ws.on('mood:set', (msg) => {
+      if (msg.userId === uid) return
+      refresh()
+    })
+  }, [ws, uid, refresh])
+
+  async function setMood(emoji) {
+    // Optimistic update so the tap feels instant.
+    const now = new Date().toISOString()
+    setMoods((prev) => {
+      const others = prev.filter((m) => m.userId !== uid)
+      return [...others, { userId: uid, emoji, updatedAt: now }]
+    })
+    setPicking(false)
+    try {
+      await api.put(`/rooms/${code}/mood`, { emoji })
+    } catch {
+      refresh()
+    }
+  }
+
+  const members = roomData?.members || []
+  if (members.length === 0) return null
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide inline-flex items-center gap-1.5">
+        <Smile className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+        Mood Check-in
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        {members.map((m) => {
+          const mood = moods.find((x) => x.userId === m.userId)
+          const isMine = m.userId === uid
+          return (
+            <button
+              key={m.userId}
+              onClick={() => isMine && setPicking((p) => !p)}
+              disabled={!isMine}
+              data-testid={`mood-${isMine ? 'mine' : 'partner'}`}
+              className={`rounded-xl py-3 px-3 text-left ${t.codeBg} ${isMine ? 'hover:brightness-95 cursor-pointer' : 'cursor-default'}`}
+            >
+              <div className="text-xs text-slate-500 truncate">{m.name}</div>
+              <div className="text-3xl mt-0.5 leading-tight">{mood?.emoji || '—'}</div>
+              <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                {mood ? shortAgo(mood.updatedAt) : (isMine ? 'tap to set' : 'not set')}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+      {picking && (
+        <div className="flex gap-1.5 flex-wrap pt-1">
+          {MOODS.map((e) => (
+            <button
+              key={e}
+              onClick={() => setMood(e)}
+              data-testid={`mood-pick-${e}`}
+              className="text-2xl p-1.5 rounded-lg hover:bg-slate-50 transition-transform hover:scale-110"
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TouchCard({ ws, roomData, online, t }) {
+  const uid = store.get('userId')
+  const [selfPressed, setSelfPressed] = useState(false)
+  const [partnerPressed, setPartnerPressed] = useState(false)
+  const partner = (roomData?.members || []).find((m) => m.userId !== uid)
+  const partnerOnline = partner && online.some((u) => u.userId === partner.userId)
+  const connected = selfPressed && partnerPressed
+
+  useEffect(() => {
+    if (!ws) return
+    const offs = [
+      ws.on('touch:press', (msg) => {
+        if (msg.userId === uid) return
+        setPartnerPressed(true)
+      }),
+      ws.on('touch:release', (msg) => {
+        if (msg.userId === uid) return
+        setPartnerPressed(false)
+      }),
+    ]
+    return () => offs.forEach((o) => o())
+  }, [ws, uid])
+
+  // Clear partner's press state if they go offline mid-hold.
+  useEffect(() => {
+    if (!partnerOnline) setPartnerPressed(false)
+  }, [partnerOnline])
+
+  function press() {
+    if (!ws?.connected || selfPressed) return
+    setSelfPressed(true)
+    ws.send('touch:press', {})
+    if ('vibrate' in navigator) navigator.vibrate?.(50)
+  }
+
+  function release() {
+    if (!selfPressed) return
+    setSelfPressed(false)
+    ws?.send('touch:release', {})
+  }
+
+  const status = !partnerOnline
+    ? `${partner?.name || 'Partner'} is offline`
+    : connected
+      ? "💗 you're both here"
+      : partnerPressed
+        ? `${partner?.name} is holding…`
+        : selfPressed
+          ? 'waiting for them…'
+          : 'Tap and hold'
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-2">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide inline-flex items-center gap-1.5">
+        <HandHeart className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+        Hold to feel them
+      </p>
+      <div className="flex flex-col items-center py-3 select-none" style={{ touchAction: 'none' }}>
+        <button
+          onPointerDown={press}
+          onPointerUp={release}
+          onPointerCancel={release}
+          onPointerLeave={release}
+          disabled={!partnerOnline || !ws?.connected}
+          data-testid="touch-button"
+          aria-label="Hold to feel them"
+          className={`h-28 w-28 rounded-full transition-all duration-200 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed ${
+            connected
+              ? 'bg-rose-500 scale-110 shadow-2xl shadow-rose-300/60 animate-pulse'
+              : selfPressed
+                ? `${t.accentBg} scale-105 shadow-lg`
+                : partnerPressed
+                  ? `${t.codeBg} animate-pulse`
+                  : 'bg-slate-100 hover:bg-slate-200'
+          }`}
+        >
+          <Heart
+            className={`h-10 w-10 ${
+              connected ? 'text-white' : (selfPressed || partnerPressed) ? t.accent : 'text-slate-300'
+            }`}
+            strokeWidth={2}
+            fill={connected ? 'currentColor' : 'none'}
+            aria-hidden="true"
+          />
+        </button>
+        <p className="text-xs text-slate-400 mt-3 min-h-[1em]">{status}</p>
+      </div>
     </div>
   )
 }
@@ -759,6 +948,10 @@ export default function Dashboard({ ws, online = [] }) {
       </div>
 
       <TimezoneStrip ws={ws} roomData={roomData} online={online} t={t} />
+
+      <MoodCard ws={ws} roomData={roomData} t={t} />
+
+      <TouchCard ws={ws} roomData={roomData} online={online} t={t} />
 
       {/* Meetup countdown */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">

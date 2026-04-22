@@ -101,6 +101,9 @@ func main() {
 			r.Patch("/rooms/{code}/songs/{id}", handlers.UpdateSong)
 			r.Delete("/rooms/{code}/songs/{id}", handlers.DeleteSong)
 
+			r.Get("/rooms/{code}/moods", handlers.GetMoods)
+			r.Put("/rooms/{code}/mood", handlers.SetMood)
+
 			r.Get("/rooms/{code}/timeline", handlers.GetTimeline)
 		})
 	})

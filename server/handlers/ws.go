@@ -138,6 +138,11 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 			case msg.Type == "nudge:send":
 				hub.Broadcast(code, outData, client)
 
+			case msg.Type == "touch:press",
+				msg.Type == "touch:release":
+				// Press-and-hold presence. Live only — no DB.
+				hub.Broadcast(code, outData, client)
+
 			case msg.Type == "draw:stroke":
 				var stroke models.Stroke
 				if err := json.Unmarshal(msg.Payload, &stroke); err != nil {

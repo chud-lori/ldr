@@ -2,7 +2,7 @@
 
 A private web app for couples in long-distance relationships.
 
-**Features:** shared journal (live-synced) · YouTube watch party with shared queue + chat · bucket list with surprise reveal · trivia · collaborative puzzle · shared drawing canvas · ephemeral song-letters (Spotify / YouTube) with keep-or-let-go · per-partner timezone widget · "thinking of you" nudge · milestone countdowns · memory timeline · one-tap invite to any feature · browser notifications + tab-title badge for backgrounded tabs
+**Features:** shared journal (live-synced) · YouTube watch party with shared queue + chat · bucket list with surprise reveal · trivia · collaborative puzzle · shared drawing canvas · ephemeral song-letters (Spotify / YouTube) with keep-or-let-go · mood check-in · press-and-hold "hold to feel them" · per-partner timezone widget · "thinking of you" nudge · milestone countdowns · memory timeline · one-tap invite to any feature · browser notifications + tab-title badge for backgrounded tabs
 
 ---
 

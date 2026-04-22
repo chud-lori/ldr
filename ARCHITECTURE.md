@@ -98,7 +98,7 @@ Runs in a background goroutine. Waits 10 minutes after startup, then runs every 
 
 ## Database
 
-One MongoDB database, ten collections:
+One MongoDB database, eleven collections:
 
 | Collection | Key fields | Notes |
 |---|---|---|
@@ -112,6 +112,7 @@ One MongoDB database, ten collections:
 | `milestones` | `roomId`, `userId`, `title`, `date`, `kind` | `kind` ∈ visit/anniversary/birthday/custom. Dashboard shows upcoming; timeline shows past |
 | `drawing` | `roomId`, `strokes[].{userId,color,width,points,at}`, `updatedAt` | One doc per room. Strokes stream via WS, capped at 2000 / stroke (4000 points max) |
 | `songs` | `roomId`, `senderId`, `recipientId`, `provider`, `trackId`, `title`, `artist`, `thumb`, `message`, `status`, `heardAt`, `savedAt` | Ephemeral song-letters. `provider` ∈ spotify/youtube, `status` ∈ unheard/saved/dismissed. `recipientId` may be empty for solo-sent songs and gets backfilled by `JoinRoom` when the partner arrives. Unheard + dismissed fade after 7 days; saved persists until room cleanup |
+| `moods` | `roomId`, `userId`, `emoji`, `note`, `updatedAt` | Mood check-in. One doc per (room, user) — always-visible "today's vibe" shown on the Dashboard. Upserted on set, broadcast via `mood:set` |
 
 Room codes are 6-character strings from the charset `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (ambiguous characters I, O, 0, 1 excluded). User IDs are 8-character strings from the same charset.
 
@@ -205,6 +206,9 @@ deleting the room server-side.
 | `puzzle:move` | client → others | `{pieceId, currentX, currentY}` | Piece swap (also persisted) |
 | `puzzle:reset` | client → others | — | New puzzle created |
 | `nudge:send` | client → others | `{emoji}` | "Thinking of you" — partner gets toast + page pulse + vibration |
+| `mood:set` | server → all | `{emoji, note}` | Broadcast from `SetMood` handler after a mood upsert |
+| `touch:press` | client → others | — | Press-and-hold started (live only, no persistence) |
+| `touch:release` | client → others | — | Press-and-hold ended |
 | `draw:stroke` | client → others | `{color, width, points}` | Completed stroke, points normalized 0..1 (also persisted) |
 | `draw:clear` | client → others | — | Wipe the canvas (also persisted) |
 | `ping` | client → server | — | Keepalive; not forwarded |

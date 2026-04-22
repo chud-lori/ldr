@@ -124,6 +124,16 @@ export default function Guide() {
         <p>Kept songs live in their <strong>Saved</strong> tab forever; let-go songs disappear from their inbox (but a 30-second undo toast shows up in case of accidental tap). Unheard songs fade after <strong>7 days</strong> so the Inbox stays curated. Your <strong>Sent</strong> tab shows a tiny status so you know when they heard or kept it.</p>
       </Section>
 
+      <Section Icon={HelpCircle} title="Mood Check-in">
+        <p>On the Dashboard, tap your own mood cell to pick an emoji ("how's your day going"). Your partner sees it instantly; they tap theirs independently.</p>
+        <p>It's always visible — no reveal mechanic — so either of you can see the other's vibe at a glance without having to ask.</p>
+      </Section>
+
+      <Section Icon={HelpCircle} title="Hold to feel them">
+        <p>Below the mood cells is a big heart button. Press and hold it; if your partner is online and holds theirs at the same moment, both circles pulse together — an ambient "we're here" signal without a single word typed.</p>
+        <p>Release any time. Nothing is stored — it's a live feeling, not a log.</p>
+      </Section>
+
       <Section Icon={Clock} title="Timezones &amp; Thinking of you">
         <p>The Dashboard shows each of you with your current local time, detected automatically from your device. It refreshes every minute.</p>
         <p>Tap the <strong>Thinking of {'{name}'}</strong> button (only enabled when your partner is online) to send a silent ping — their tab shows a toast, a soft pink pulse, and on phones a tiny vibration. It has a short cooldown so it stays meaningful.</p>
