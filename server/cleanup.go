@@ -25,9 +25,15 @@ func startCleanupWorker() {
 }
 
 func runCleanup() {
-	cutoff := time.Now().AddDate(0, 0, -30)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
+	sweepInactiveRooms(ctx)
+	sweepFadedSongs(ctx)
+}
+
+func sweepInactiveRooms(ctx context.Context) {
+	cutoff := time.Now().AddDate(0, 0, -30)
 
 	cursor, err := db.Col("rooms").Find(ctx, bson.M{
 		"lastActiveAt": bson.M{"$exists": true, "$lt": cutoff},
@@ -45,11 +51,30 @@ func runCleanup() {
 	}
 
 	for _, r := range rooms {
-		for _, col := range []string{"journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle", "milestones", "drawing"} {
+		for _, col := range []string{"journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle", "milestones", "drawing", "songs"} {
 			db.Col(col).DeleteMany(ctx, bson.M{"roomId": r.Code})
 		}
 		db.Col("rooms").DeleteOne(ctx, bson.M{"code": r.Code})
 	}
 
 	log.Printf("[cleanup] deleted %d inactive rooms", len(rooms))
+}
+
+// Song letters are meant to be listened to soon. Anything unheard or
+// dismissed for more than 7 days fades from the DB so the Inbox stays
+// curated. Saved songs are untouched and live until the room itself is
+// deleted by the inactive-room sweep.
+func sweepFadedSongs(ctx context.Context) {
+	cutoff := time.Now().AddDate(0, 0, -7)
+	res, err := db.Col("songs").DeleteMany(ctx, bson.M{
+		"status":    bson.M{"$in": []string{"unheard", "dismissed"}},
+		"createdAt": bson.M{"$lt": cutoff},
+	})
+	if err != nil {
+		log.Printf("[cleanup] songs sweep error: %v", err)
+		return
+	}
+	if res.DeletedCount > 0 {
+		log.Printf("[cleanup] faded %d songs", res.DeletedCount)
+	}
 }

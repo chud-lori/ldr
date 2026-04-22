@@ -5,7 +5,7 @@ import { useTheme } from '../hooks/useTheme'
 import { api } from '../lib/api'
 import {
   Home, BookOpen, Tv, ListChecks, HelpCircle, PuzzleIcon, Pencil,
-  History, X, PenLine,
+  History, X, PenLine, Music2,
 } from '../lib/icons'
 
 const nav = [
@@ -16,6 +16,7 @@ const nav = [
   { to: '/trivia',    label: 'Trivia',      Icon: HelpCircle },
   { to: '/puzzle',    label: 'Puzzle',      Icon: PuzzleIcon },
   { to: '/draw',      label: 'Draw',        Icon: Pencil },
+  { to: '/music',     label: 'Music',       Icon: Music2 },
   { to: '/timeline',  label: 'Timeline',    Icon: History },
 ]
 

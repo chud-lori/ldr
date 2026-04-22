@@ -17,6 +17,7 @@ import Puzzle from './pages/Puzzle'
 import Draw from './pages/Draw'
 import Timeline from './pages/Timeline'
 import Guide from './pages/Guide'
+import Music from './pages/Music'
 
 function RequireRoom({ children }) {
   const code = store.get('roomCode')
@@ -124,6 +125,41 @@ function AppRoutes() {
     return off
   }, [ws, uid, toast, navigate])
 
+  // Partner sent a song — sticky toast, Play button jumps to /music
+  useEffect(() => {
+    if (!ws) return
+    const off = ws.on('song:sent', (msg) => {
+      if (msg.userId === uid) return
+      if (location.pathname === '/music') return
+      const who = msg.name || 'Your person'
+      toast(`${who} sent you a song 🎵`, 'info', {
+        duration: 0,
+        action: { label: 'Play', onClick: () => navigate('/music') },
+      })
+      bumpBadge()
+      notify(`${who} sent you a song`, 'Tap to listen', { tag: 'song-sent' })
+    })
+    return off
+  }, [ws, uid, toast, navigate])
+
+  // Receiver heard / saved the song we sent — gentle feedback to the sender
+  useEffect(() => {
+    if (!ws) return
+    const offs = [
+      ws.on('song:heard', (msg) => {
+        if (msg.userId === uid) return
+        const who = msg.name || 'They'
+        toast(`${who} heard your song 🎧`, 'info')
+      }),
+      ws.on('song:saved', (msg) => {
+        if (msg.userId === uid) return
+        const who = msg.name || 'They'
+        toast(`${who} kept your song ❤`, 'success')
+      }),
+    ]
+    return () => offs.forEach((off) => off())
+  }, [ws, uid, toast])
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />
@@ -140,6 +176,7 @@ function AppRoutes() {
                 <Route path="/trivia" element={<Trivia ws={ws} online={online} />} />
                 <Route path="/puzzle" element={<Puzzle ws={ws} online={online} />} />
                 <Route path="/draw" element={<Draw ws={ws} online={online} />} />
+                <Route path="/music" element={<Music ws={ws} online={online} />} />
                 <Route path="/timeline" element={<Timeline />} />
                 <Route path="/guide" element={<Guide />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />

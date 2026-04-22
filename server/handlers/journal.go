@@ -13,6 +13,7 @@ import (
 
 	"ldr-server/db"
 	"ldr-server/models"
+	"ldr-server/ws"
 )
 
 func GetJournal(w http.ResponseWriter, r *http.Request) {
@@ -139,6 +140,14 @@ func SaveJournal(w http.ResponseWriter, r *http.Request) {
 
 	opts := options.UpdateOne().SetUpsert(true)
 	db.Col("journal").UpdateOne(ctx, filter, update, opts)
+
+	// Server-side broadcast so the partner refreshes even if the sender's
+	// WebSocket isn't currently OPEN (the client still sends its own
+	// `journal:saved` for immediacy; the listener is idempotent).
+	if Hub != nil {
+		msg := ws.MarshalMsg("journal:saved", uid, body.Name, map[string]string{"date": body.Date})
+		Hub.BroadcastAll(code, msg)
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }

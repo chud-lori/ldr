@@ -135,6 +135,13 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 		bson.M{"$push": bson.M{"members": member}},
 	)
 
+	// Claim any solo-sent songs (recipientId left blank) for the new joiner —
+	// the "letter waiting at the door" behaviour for pre-seeded songs.
+	db.Col("songs").UpdateMany(ctx,
+		bson.M{"roomId": code, "recipientId": ""},
+		bson.M{"$set": bson.M{"recipientId": uid}},
+	)
+
 	room.Members = append(room.Members, member)
 	respond(w, http.StatusOK, map[string]any{"userId": uid, "room": room})
 }
@@ -245,7 +252,7 @@ func DeleteRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete room and all associated data
-	for _, col := range []string{"rooms", "journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle", "milestones", "drawing"} {
+	for _, col := range []string{"rooms", "journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle", "milestones", "drawing", "songs"} {
 		db.Col(col).DeleteMany(ctx, bson.M{"roomId": code})
 	}
 	db.Col("rooms").DeleteOne(ctx, bson.M{"code": code})

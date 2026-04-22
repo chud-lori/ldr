@@ -4,7 +4,7 @@ import { store } from '../lib/store'
 import {
   Home, BookOpen, Tv, ListChecks, HelpCircle, PuzzleIcon, Pencil,
   History, CalendarHeart, Clock, Heart, Settings, Trash2, Smartphone,
-  LogOut, Link2, ListMusic, ArrowLeft, Share2,
+  LogOut, Link2, ListMusic, ArrowLeft, Share2, Music2,
 } from '../lib/icons'
 
 function Section({ Icon, title, children }) {
@@ -116,6 +116,12 @@ export default function Guide() {
       <Section Icon={Pencil} title="Draw">
         <p>A shared canvas. Pick a color and stroke width, draw with your mouse or finger, and each finished stroke appears on your partner's screen instantly.</p>
         <p>Strokes are saved per room, so you can come back later and keep adding. <strong>Clear canvas</strong> wipes everything for both of you.</p>
+      </Section>
+
+      <Section Icon={Music2} title="Song Letters">
+        <p>Send a Spotify or YouTube track with a handwritten note. Paste the link, write a line or two, and tap send — your partner gets a notification with a Play button. You can even send before they've joined the room — their Inbox picks up waiting songs the moment they arrive.</p>
+        <p>When they open the card the song plays automatically. They can only <strong>play and pause</strong> — no skipping, no seeking. Once a song has played through, a prompt asks them to <strong>keep it</strong> or <strong>let it go</strong>.</p>
+        <p>Kept songs live in their <strong>Saved</strong> tab forever; let-go songs disappear from their inbox (but a 30-second undo toast shows up in case of accidental tap). Unheard songs fade after <strong>7 days</strong> so the Inbox stays curated. Your <strong>Sent</strong> tab shows a tiny status so you know when they heard or kept it.</p>
       </Section>
 
       <Section Icon={Clock} title="Timezones &amp; Thinking of you">

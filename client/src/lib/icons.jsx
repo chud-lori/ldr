@@ -51,6 +51,13 @@ import {
   Target,
   Map,
   Info,
+  Music,
+  Music2,
+  Pause,
+  RotateCw,
+  Bookmark,
+  Inbox,
+  Send,
 } from 'lucide-react'
 
 // Small helper — passes through className, defaults size/strokeWidth.
@@ -103,6 +110,13 @@ export {
   Target,
   Map,
   Info,
+  Music,
+  Music2,
+  Pause,
+  RotateCw,
+  Bookmark,
+  Inbox,
+  Send,
 }
 
 // Feature → nav icon. Single source of truth for nav + dashboard grid.
@@ -114,6 +128,7 @@ export const FEATURE_ICONS = {
   trivia:    HelpCircle,
   puzzle:    PuzzleIcon,
   draw:      Pencil,
+  music:     Music2,
   timeline:  History,
 }
 

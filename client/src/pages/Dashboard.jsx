@@ -7,7 +7,7 @@ import {
   Settings, X, Plus, Heart, Clock, Link2, CalendarHeart,
   Flame, BookOpen, BookMarked, Tv, ListChecks, HelpCircle, PuzzleIcon,
   Pencil, History, AlertTriangle, Sprout, Sparkles, Zap, Check, Copy,
-  Cake, Plane, Pin, Lock,
+  Cake, Plane, Pin, Lock, Music2,
 } from '../lib/icons'
 import { maybeRequestPermission } from '../lib/notify'
 
@@ -689,6 +689,7 @@ export default function Dashboard({ ws, online = [] }) {
     { to: '/trivia',   Icon: HelpCircle,  label: 'Trivia',      desc: 'How well do you know each other?' },
     { to: '/puzzle',   Icon: PuzzleIcon,  label: 'Puzzle',      desc: 'Solve together in real-time' },
     { to: '/draw',     Icon: Pencil,      label: 'Draw',        desc: 'Shared canvas, live strokes' },
+    { to: '/music',    Icon: Music2,      label: 'Song Letters', desc: 'Send a song with a note' },
     { to: '/timeline', Icon: History,     label: 'Timeline',    desc: 'Your story, together' },
   ]
 

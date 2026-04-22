@@ -175,6 +175,12 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 				// "come join me at /<feature>" toast + Join button on partner's side
 				hub.Broadcast(code, outData, client)
 
+			case msg.Type == "song:sent",
+				msg.Type == "song:heard",
+				msg.Type == "song:saved":
+				// Music letters — sender → receiver (sent), receiver → sender (heard/saved)
+				hub.Broadcast(code, outData, client)
+
 			case msg.Type == "presence:request":
 				data := ws.MarshalMsg("presence:list", "", "", presenceList(hub, code))
 				select {

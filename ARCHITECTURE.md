@@ -89,13 +89,16 @@ A 30-second ping is sent from the client to keep Cloudflare's idle-connection ti
 
 ### Cleanup worker
 
-Runs in a background goroutine. Waits 10 minutes after startup, then runs every 24 hours. Deletes all rooms where `lastActiveAt` is older than 30 days, along with all associated documents in `journal`, `bucketlist`, `trivia`, `watchparty`, `chat`, `puzzle`, `milestones`, and `drawing` collections. `DeleteRoom` (manual delete) uses the same list.
+Runs in a background goroutine. Waits 10 minutes after startup, then runs every 24 hours. Two sweeps:
+
+1. **Inactive rooms** — deletes all rooms where `lastActiveAt` is older than 30 days along with every associated document in `journal`, `bucketlist`, `trivia`, `watchparty`, `chat`, `puzzle`, `milestones`, `drawing`, and `songs`. `DeleteRoom` (manual delete) uses the same list.
+2. **Faded songs** — deletes entries in `songs` with `status ∈ {unheard, dismissed}` and `createdAt` older than 7 days. Saved songs are untouched. Keeps the song-letter Inbox curated without requiring user action.
 
 ---
 
 ## Database
 
-One MongoDB database, nine collections:
+One MongoDB database, ten collections:
 
 | Collection | Key fields | Notes |
 |---|---|---|
@@ -108,6 +111,7 @@ One MongoDB database, nine collections:
 | `puzzle` | `roomId`, `imageUrl`, `gridSize`, `pieces[]`, `completed` | Piece positions persist; moves sync via WS |
 | `milestones` | `roomId`, `userId`, `title`, `date`, `kind` | `kind` ∈ visit/anniversary/birthday/custom. Dashboard shows upcoming; timeline shows past |
 | `drawing` | `roomId`, `strokes[].{userId,color,width,points,at}`, `updatedAt` | One doc per room. Strokes stream via WS, capped at 2000 / stroke (4000 points max) |
+| `songs` | `roomId`, `senderId`, `recipientId`, `provider`, `trackId`, `title`, `artist`, `thumb`, `message`, `status`, `heardAt`, `savedAt` | Ephemeral song-letters. `provider` ∈ spotify/youtube, `status` ∈ unheard/saved/dismissed. `recipientId` may be empty for solo-sent songs and gets backfilled by `JoinRoom` when the partner arrives. Unheard + dismissed fade after 7 days; saved persists until room cleanup |
 
 Room codes are 6-character strings from the charset `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (ambiguous characters I, O, 0, 1 excluded). User IDs are 8-character strings from the same charset.
 
@@ -167,6 +171,7 @@ The `online` toast uses a `useRef` mirror of the online list to detect new arriv
 /trivia          → Trivia
 /puzzle          → Puzzle
 /draw            → Shared canvas
+/music           → Song letters (Inbox / Saved / Sent). Spotify + YouTube, ephemeral by default
 /timeline        → Auto-assembled memory of milestones / bucket completions / shared journal days
 /guide           → Guide
 ```
@@ -192,6 +197,9 @@ deleting the room server-side.
 | `queue:changed` | client → others | — | Signal partner to refetch the shared watch-party queue |
 | `journal:saved` | client → others | `{date}` | Sender just saved a journal entry; partner refetches `/journal` + streak |
 | `invite:send` | client → others | `{feature}` | "Join me at /watch" — shows a sticky toast with Join button on partner's side |
+| `song:sent` | client → others | `{id}` | Sender just posted a song; partner gets a sticky "Play" toast and /music refetches |
+| `song:heard` | client → others | `{id}` | Receiver played a song through. Sender's toast: "{name} heard your song" |
+| `song:saved` | client → others | `{id}` | Receiver kept a song. Sender's toast: "{name} kept your song" |
 | `chat:send` | client → others | `{text}` | Chat message (also persisted) |
 | `trivia:answer` | client → others | — | Trigger reload of trivia list |
 | `puzzle:move` | client → others | `{pieceId, currentX, currentY}` | Piece swap (also persisted) |

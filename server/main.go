@@ -38,6 +38,7 @@ func main() {
 
 	hub := ws.NewHub()
 	go hub.Run()
+	handlers.SetHub(hub)
 
 	startCleanupWorker()
 
@@ -92,6 +93,12 @@ func main() {
 
 			r.Get("/rooms/{code}/drawing", handlers.GetDrawing)
 			r.Delete("/rooms/{code}/drawing", handlers.ClearDrawing)
+
+			r.Get("/rooms/{code}/songs", handlers.ListSongs)
+			r.Get("/rooms/{code}/songs/resolve", handlers.ResolveTrack)
+			r.Post("/rooms/{code}/songs", handlers.CreateSong)
+			r.Patch("/rooms/{code}/songs/{id}", handlers.UpdateSong)
+			r.Delete("/rooms/{code}/songs/{id}", handlers.DeleteSong)
 
 			r.Get("/rooms/{code}/timeline", handlers.GetTimeline)
 		})

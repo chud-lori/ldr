@@ -12,4 +12,5 @@ export const FEATURE_META = {
   trivia:   { to: '/trivia',   verb: 'play trivia',      label: 'Trivia' },
   journal:  { to: '/journal',  verb: 'write together',   label: 'Journal' },
   bucket:   { to: '/bucket',   verb: 'plan something',   label: 'Bucket list' },
+  music:    { to: '/music',    verb: 'share a song',     label: 'Music' },
 }
