@@ -6,6 +6,12 @@ export function useWebSocket(roomCode) {
   const listenersRef = useRef({})
   const reconnectTimer = useRef(null)
   const pingTimer = useRef(null)
+  // Track the "active" WS across StrictMode double-invokes. Only the latest
+  // instance's events are allowed to update React state or schedule reconnects.
+  // Without this, the abandoned first WebSocket from the StrictMode cleanup
+  // fires `onclose` late and clobbers `connected` back to false after the real
+  // connection is live.
+  const activeRef = useRef(null)
   const [connected, setConnected] = useState(false)
 
   const connect = useCallback(() => {
@@ -21,8 +27,10 @@ export function useWebSocket(roomCode) {
 
     const ws = new WebSocket(url)
     wsRef.current = ws
+    activeRef.current = ws
 
     ws.onopen = () => {
+      if (activeRef.current !== ws) return
       setConnected(true)
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       // Ping every 30s to keep Cloudflare's proxy from closing idle connections
@@ -32,12 +40,14 @@ export function useWebSocket(roomCode) {
     }
 
     ws.onclose = () => {
+      if (activeRef.current !== ws) return
       setConnected(false)
       if (pingTimer.current) clearInterval(pingTimer.current)
       reconnectTimer.current = setTimeout(connect, 3000)
     }
 
     ws.onmessage = (e) => {
+      if (activeRef.current !== ws) return
       try {
         const msg = JSON.parse(e.data)
         const handlers = listenersRef.current[msg.type] || []
@@ -53,7 +63,16 @@ export function useWebSocket(roomCode) {
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       if (pingTimer.current) clearInterval(pingTimer.current)
-      wsRef.current?.close()
+      const ws = wsRef.current
+      if (ws) {
+        // Disown this WS: its late-arriving events are now no-ops (see activeRef
+        // checks above). Clear handlers before close so onclose doesn't bounce.
+        ws.onopen = null
+        ws.onclose = null
+        ws.onmessage = null
+        activeRef.current = null
+        ws.close()
+      }
     }
   }, [connect])
 

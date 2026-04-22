@@ -282,6 +282,61 @@ test.describe('Root redirect & sign-out', () => {
   })
 })
 
+test.describe('Journal real-time sync', () => {
+  test('partner save live-reveals entry once both have written', async ({ browser, request }) => {
+    const { code, alice, bob } = await bootstrapRoom(request)
+    const ctxA = await browser.newContext()
+    const ctxB = await browser.newContext()
+    const pageA = await enterRoom(ctxA, { code, user: alice, timezone: 'Asia/Jakarta', path: '/journal' })
+    const pageB = await enterRoom(ctxB, { code, user: bob, timezone: 'Europe/Berlin', path: '/journal' })
+    await pageA.waitForTimeout(800)
+
+    // Alice writes first
+    await pageA.locator('textarea').fill('Alice-entry')
+    await pageA.getByRole('button', { name: /Save/i }).click()
+    // Alice sees her own entry immediately; Bob's side shouldn't reveal it
+    await expect(pageA.getByText('Alice-entry')).toBeVisible()
+    await expect(pageB.getByText('Alice-entry')).toBeHidden()
+
+    // Bob writes. When Bob saves, the server reveals both entries to both
+    // viewers, and the journal:saved WS event triggers Alice's page to
+    // refetch — so Alice should see Bob's entry without navigating.
+    await pageB.locator('textarea').fill('Bob-entry')
+    await pageB.getByRole('button', { name: /Save/i }).click()
+
+    await expect(pageA.getByText('Bob-entry')).toBeVisible({ timeout: 5000 })
+    await expect(pageB.getByText('Alice-entry')).toBeVisible()
+
+    await ctxA.close()
+    await ctxB.close()
+  })
+})
+
+test.describe('Feature invite pings', () => {
+  test('invite fires sticky toast with Join that navigates', async ({ browser, request }) => {
+    const { code, alice, bob } = await bootstrapRoom(request)
+    const ctxA = await browser.newContext()
+    const ctxB = await browser.newContext()
+    const pageA = await enterRoom(ctxA, { code, user: alice, timezone: 'Asia/Jakarta', path: '/watch' })
+    // Bob stays on dashboard (different page)
+    const pageB = await enterRoom(ctxB, { code, user: bob, timezone: 'Europe/Berlin' })
+    await pageA.waitForTimeout(800)
+
+    await pageA.getByTestId('invite-partner').click()
+
+    // Bob sees a sticky toast "Alice wants to watch something" with Join
+    const joinBtn = pageB.getByRole('button', { name: 'Join' })
+    await expect(joinBtn).toBeVisible({ timeout: 5000 })
+    await expect(pageB.getByText(/Alice wants to watch something/)).toBeVisible()
+
+    await joinBtn.click()
+    await expect(pageB).toHaveURL(/\/watch$/)
+
+    await ctxA.close()
+    await ctxB.close()
+  })
+})
+
 test.describe('Draw page', () => {
   test('drawing a stroke persists and syncs to partner', async ({ browser, request }) => {
     const { code, alice, bob } = await bootstrapRoom(request)

@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import { HelpCircle, X } from '../lib/icons'
+import InviteButton from '../components/InviteButton'
 
 function QuestionCard({ q, uid, onAnswer, onDelete, t }) {
   const [answer, setAnswer] = useState('')
@@ -85,7 +86,7 @@ function QuestionCard({ q, uid, onAnswer, onDelete, t }) {
   )
 }
 
-export default function Trivia({ ws }) {
+export default function Trivia({ ws, online }) {
   const { t } = useTheme()
   const code = store.get('roomCode')
   const uid = store.get('userId')
@@ -141,10 +142,13 @@ export default function Trivia({ ws }) {
       )}
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-        <h2 className="font-bold text-slate-800 mb-1 inline-flex items-center gap-2">
-          <HelpCircle className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
-          Ask About Yourself
-        </h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="font-bold text-slate-800 inline-flex items-center gap-2">
+            <HelpCircle className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+            Ask About Yourself
+          </h2>
+          <InviteButton ws={ws} online={online} feature="trivia" selfId={uid} />
+        </div>
         <p className="text-xs text-slate-400 mb-3">Create questions for your partner to answer</p>
         <form onSubmit={addQuestion} className="space-y-2">
           <input

@@ -13,6 +13,9 @@ const STYLES = {
 
 function ToastItem({ toast, onRemove }) {
   useEffect(() => {
+    // Sticky toasts (duration === 0 or null) stay until dismissed or the
+    // action is tapped — used for invites that need a partner response.
+    if (toast.duration === 0 || toast.duration === null) return
     const t = setTimeout(() => onRemove(toast.id), toast.duration ?? 4000)
     return () => clearTimeout(t)
   }, [toast.id, toast.duration, onRemove])
@@ -22,7 +25,17 @@ function ToastItem({ toast, onRemove }) {
     <div className={`flex items-start gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm max-w-xs w-full pointer-events-auto ${STYLES[toast.type] || STYLES.info}`}
       style={{ animation: 'slideIn 0.2s ease' }}>
       <Icon className="h-4 w-4 shrink-0 mt-0.5" strokeWidth={2.5} aria-hidden="true" />
-      <span className="leading-relaxed flex-1">{toast.message}</span>
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <div className="leading-relaxed">{toast.message}</div>
+        {toast.action && (
+          <button
+            onClick={() => { toast.action.onClick(); onRemove(toast.id) }}
+            className="text-xs font-semibold bg-white/20 hover:bg-white/30 rounded-lg px-2.5 py-1 transition-colors"
+          >
+            {toast.action.label}
+          </button>
+        )}
+      </div>
       <button onClick={() => onRemove(toast.id)} className="shrink-0 opacity-70 hover:opacity-100 p-0.5" aria-label="Dismiss">
         <X className="h-4 w-4" strokeWidth={2} />
       </button>
@@ -33,9 +46,15 @@ function ToastItem({ toast, onRemove }) {
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([])
 
-  const add = useCallback((message, type = 'info', duration) => {
+  // Signature: add(message, typeOrOpts, durationOrOpts)
+  //   - Legacy: add("text", "success", 4000)
+  //   - New:    add("text", "success", { action: { label, onClick }, duration: 0 })
+  const add = useCallback((message, type = 'info', opts) => {
     const id = Date.now() + Math.random()
-    setToasts((prev) => [...prev, { id, message, type, duration }])
+    const config = (typeof opts === 'object' && opts !== null)
+      ? { duration: opts.duration, action: opts.action }
+      : { duration: opts }
+    setToasts((prev) => [...prev, { id, message, type, ...config }])
   }, [])
 
   const remove = useCallback((id) => {

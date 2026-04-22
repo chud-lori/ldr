@@ -5,6 +5,7 @@ import { useTheme } from '../hooks/useTheme'
 import {
   Tv, ListMusic, MessageCircle, X, SkipForward, ArrowUp, AlertTriangle,
 } from '../lib/icons'
+import InviteButton from '../components/InviteButton'
 
 function extractVideoId(input) {
   if (!input) return null
@@ -17,7 +18,7 @@ function extractVideoId(input) {
   }
 }
 
-export default function WatchParty({ ws }) {
+export default function WatchParty({ ws, online }) {
   const { t } = useTheme()
   const code = store.get('roomCode')
   const uid = store.get('userId')
@@ -193,6 +194,13 @@ export default function WatchParty({ ws }) {
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="font-bold text-slate-800 inline-flex items-center gap-2">
+          <Tv className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+          Watch Party
+        </h2>
+        <InviteButton ws={ws} online={online} feature="watch" selfId={uid} />
+      </div>
       <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 space-y-2">
         <div className="flex gap-2">
           <input

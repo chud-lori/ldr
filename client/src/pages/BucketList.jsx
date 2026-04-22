@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import { ListChecks, Gift, Check, X, Lock, CheckCircle2, Pin } from '../lib/icons'
+import InviteButton from '../components/InviteButton'
 
 function SurpriseItem({ item, uid }) {
   const isLocked = item.surprise && item.userId !== uid && !item.text
@@ -33,7 +34,7 @@ function SurpriseItem({ item, uid }) {
   )
 }
 
-export default function BucketList() {
+export default function BucketList({ ws, online }) {
   const { t } = useTheme()
   const code = store.get('roomCode')
   const uid = store.get('userId')
@@ -85,10 +86,13 @@ export default function BucketList() {
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-        <h2 className="font-bold text-slate-800 mb-3 inline-flex items-center gap-2">
-          <ListChecks className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
-          Bucket List
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold text-slate-800 inline-flex items-center gap-2">
+            <ListChecks className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+            Bucket List
+          </h2>
+          <InviteButton ws={ws} online={online} feature="bucket" selfId={uid} />
+        </div>
         <form onSubmit={add} className="space-y-3">
           <textarea value={text} onChange={(e) => setText(e.target.value)}
             placeholder="Add something to do together…"

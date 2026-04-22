@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { store } from '../lib/store'
 import { api } from '../lib/api'
@@ -9,6 +9,7 @@ import {
   Pencil, History, AlertTriangle, Sprout, Sparkles, Zap, Check, Copy,
   Cake, Plane, Pin, Lock,
 } from '../lib/icons'
+import { maybeRequestPermission } from '../lib/notify'
 
 function calcStreak(allDates) {
   const bothDays = new Set(
@@ -40,10 +41,10 @@ const MILESTONES = [
   { key: 'streak14', check: (s) => s.streak >= 14, Icon: Zap,   label: '14-day streak' },
 ]
 
-function StatsCard({ code, roomData, t }) {
+function StatsCard({ code, roomData, ws, t }) {
   const [stats, setStats] = useState(null)
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     api.get(`/rooms/${code}/journal/all`).then((data) => {
       const all = Array.isArray(data) ? data : []
       const streak = calcStreak(all)
@@ -54,6 +55,14 @@ function StatsCard({ code, roomData, t }) {
       setStats({ streak, journalDays, roomDays })
     }).catch(() => {})
   }, [code, roomData])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  // Partner wrote an entry → streak / journal-days may have ticked
+  useEffect(() => {
+    if (!ws) return
+    return ws.on('journal:saved', () => refresh())
+  }, [ws, refresh])
 
   if (!stats) return null
 
@@ -184,6 +193,9 @@ function TimezoneStrip({ ws, roomData, online, t }) {
     setCooling(true)
     setTimeout(() => setSent(false), 2000)
     setTimeout(() => setCooling(false), 5000)
+    // Ask for notification permission the first time we *send*. Timing this
+    // after a user-initiated action feels less spammy than asking on mount.
+    maybeRequestPermission()
   }
 
   return (
@@ -759,7 +771,7 @@ export default function Dashboard({ ws, online = [] }) {
 
       <MilestonesCard code={code} t={t} />
 
-      <StatsCard code={code} roomData={roomData} t={t} />
+      <StatsCard code={code} roomData={roomData} ws={ws} t={t} />
 
       {/* Feature grid */}
       <div className="grid grid-cols-2 gap-3">

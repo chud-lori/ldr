@@ -3,13 +3,15 @@ import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import { Pencil } from '../lib/icons'
+import InviteButton from '../components/InviteButton'
 
 const COLORS = ['#111827', '#ef4444', '#ec4899', '#3b82f6', '#10b981', '#f59e0b']
 const WIDTHS = [2, 4, 8]
 
-export default function Draw({ ws }) {
+export default function Draw({ ws, online }) {
   const { t } = useTheme()
   const code = store.get('roomCode')
+  const uid = store.get('userId')
   const canvasRef = useRef(null)
   const strokesRef = useRef([])
   const currentRef = useRef(null)
@@ -144,6 +146,13 @@ export default function Draw({ ws }) {
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="font-bold text-slate-800 inline-flex items-center gap-2">
+          <Pencil className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+          Draw
+        </h2>
+        <InviteButton ws={ws} online={online} feature="draw" selfId={uid} />
+      </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1.5">
           {COLORS.map((c) => (

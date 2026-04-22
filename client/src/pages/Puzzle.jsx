@@ -3,10 +3,12 @@ import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import { PuzzleIcon, Sparkles } from '../lib/icons'
+import InviteButton from '../components/InviteButton'
 
-export default function Puzzle({ ws }) {
+export default function Puzzle({ ws, online }) {
   const { t } = useTheme()
   const code = store.get('roomCode')
+  const uid = store.get('userId')
 
   const [puzzle, setPuzzle] = useState(null)
   const [imageUrl, setImageUrl] = useState('')
@@ -131,10 +133,13 @@ export default function Puzzle({ ws }) {
   if (!puzzle) return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-        <h2 className="font-bold text-slate-800 mb-1 inline-flex items-center gap-2">
-          <PuzzleIcon className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
-          Collaborative Puzzle
-        </h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="font-bold text-slate-800 inline-flex items-center gap-2">
+            <PuzzleIcon className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+            Collaborative Puzzle
+          </h2>
+          <InviteButton ws={ws} online={online} feature="puzzle" selfId={uid} />
+        </div>
         <p className="text-xs text-slate-400 mb-4">Both of you solve the same puzzle in real-time</p>
         <form onSubmit={createPuzzle} className="space-y-3">
           <input
@@ -176,10 +181,13 @@ export default function Puzzle({ ws }) {
     <div className="space-y-3">
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-slate-800 inline-flex items-center gap-2">
-            <PuzzleIcon className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
-            Puzzle
-          </h2>
+          <div className="flex items-center justify-between w-full">
+            <h2 className="font-bold text-slate-800 inline-flex items-center gap-2">
+              <PuzzleIcon className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+              Puzzle
+            </h2>
+            <InviteButton ws={ws} online={online} feature="puzzle" selfId={uid} />
+          </div>
           <button onClick={resetPuzzle} className="text-xs text-slate-400 hover:text-red-400 transition-colors">
             New puzzle
           </button>

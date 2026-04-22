@@ -167,6 +167,14 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 				// Fire-and-forget signal — partner re-fetches the watchparty.
 				hub.Broadcast(code, outData, client)
 
+			case msg.Type == "journal:saved":
+				// Partner refetches the journal + streak data
+				hub.Broadcast(code, outData, client)
+
+			case msg.Type == "invite:send":
+				// "come join me at /<feature>" toast + Join button on partner's side
+				hub.Broadcast(code, outData, client)
+
 			case msg.Type == "presence:request":
 				data := ws.MarshalMsg("presence:list", "", "", presenceList(hub, code))
 				select {

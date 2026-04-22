@@ -4,7 +4,7 @@ import { store } from '../lib/store'
 import {
   Home, BookOpen, Tv, ListChecks, HelpCircle, PuzzleIcon, Pencil,
   History, CalendarHeart, Clock, Heart, Settings, Trash2, Smartphone,
-  LogOut, Link2, ListMusic, ArrowLeft,
+  LogOut, Link2, ListMusic, ArrowLeft, Share2,
 } from '../lib/icons'
 
 function Section({ Icon, title, children }) {
@@ -121,6 +121,12 @@ export default function Guide() {
       <Section Icon={Clock} title="Timezones &amp; Thinking of you">
         <p>The Dashboard shows each of you with your current local time, detected automatically from your device. It refreshes every minute.</p>
         <p>Tap the <strong>Thinking of {'{name}'}</strong> button (only enabled when your partner is online) to send a silent ping — their tab shows a toast, a soft pink pulse, and on phones a tiny vibration. It has a short cooldown so it stays meaningful.</p>
+        <p>If the tab isn't focused, you'll see the unread count in the browser tab title (e.g. "💗 (1) LDR Together"). The first time you send a nudge we'll ask for notification permission so you can also get an OS-level alert when the tab is in the background.</p>
+      </Section>
+
+      <Section Icon={Share2} title="Invite partner to a feature">
+        <p>Every feature page (Watch, Draw, Puzzle, Trivia, Journal, Bucket List) has a small <strong>Invite</strong> button up top. Tap it and your partner gets a toast saying "{'{name}'} wants to watch something" with a <strong>Join</strong> button that takes them straight there.</p>
+        <p>The toast stays visible until they act on it — no auto-dismiss, because an invite you missed is useless.</p>
       </Section>
 
       <Section Icon={CalendarHeart} title="Milestones">

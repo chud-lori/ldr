@@ -180,6 +180,8 @@ All routes except `/` are wrapped in `RequireRoom`.
 | `watch:request-sync` | client → others | — | Ask for current playback state |
 | `watch:sync` | client → others | `{time, playing}` | Reply with current state |
 | `queue:changed` | client → others | — | Signal partner to refetch the shared watch-party queue |
+| `journal:saved` | client → others | `{date}` | Sender just saved a journal entry; partner refetches `/journal` + streak |
+| `invite:send` | client → others | `{feature}` | "Join me at /watch" — shows a sticky toast with Join button on partner's side |
 | `chat:send` | client → others | `{text}` | Chat message (also persisted) |
 | `trivia:answer` | client → others | — | Trigger reload of trivia list |
 | `puzzle:move` | client → others | `{pieceId, currentX, currentY}` | Piece swap (also persisted) |

@@ -4,6 +4,7 @@ import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import { getDailyPrompt } from '../lib/prompts'
 import { BookOpen } from '../lib/icons'
+import InviteButton from '../components/InviteButton'
 
 const MOODS = ['😊', '😔', '😍', '😴', '🥰', '😤', '😢', '🤩', '😌', '🥺']
 
@@ -28,7 +29,7 @@ function EntryCard({ entry, mine, t }) {
   )
 }
 
-export default function Journal() {
+export default function Journal({ ws, online }) {
   const { t } = useTheme()
   const code = store.get('roomCode')
   const uid = store.get('userId')
@@ -64,6 +65,19 @@ export default function Journal() {
 
   useEffect(() => { load(date); loadAll() }, [date])
 
+  // Refetch when partner saves an entry. If the broadcast's date matches the
+  // one we're viewing, refresh the current view + streak. Otherwise just the
+  // streak (keeps the calendar heat-map accurate without flicker).
+  useEffect(() => {
+    if (!ws) return
+    return ws.on('journal:saved', (msg) => {
+      if (msg.userId === uid) return
+      const savedDate = msg.payload?.date
+      if (savedDate === date) load(date)
+      loadAll()
+    })
+  }, [ws, uid, date])
+
   async function save() {
     if (!content.trim()) return
     setSaving(true)
@@ -71,6 +85,7 @@ export default function Journal() {
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
     await Promise.all([load(date), loadAll()])
+    ws?.send('journal:saved', { date })
     setSaving(false)
   }
 
@@ -80,10 +95,13 @@ export default function Journal() {
     <div className="space-y-4">
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-slate-800 inline-flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
-            Journal
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-bold text-slate-800 inline-flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+              Journal
+            </h2>
+            <InviteButton ws={ws} online={online} feature="journal" selfId={uid} />
+          </div>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
             className="text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-slate-400 text-slate-600" />
         </div>
