@@ -32,13 +32,13 @@ export default function InviteButton({ ws, online = [], feature, selfId }) {
       onClick={send}
       disabled={cooling || !ws?.connected}
       data-testid="invite-partner"
-      title={partnerOnline ? `Invite partner to ${meta.label.toLowerCase()}` : 'Partner is offline — they won\'t see the invite right now'}
-      className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+      title={partnerOnline ? `Ask them to join ${meta.label.toLowerCase()}` : 'Partner is offline — they won\'t see the invite right now'}
+      className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${
         sent ? 'bg-emerald-50 text-emerald-600' : `${t.accentBg} ${t.accent} hover:brightness-95`
       }`}
     >
       {sent ? <><Check className="h-3.5 w-3.5" strokeWidth={2.5} /> Sent</>
-            : <><Share2 className="h-3.5 w-3.5" strokeWidth={2} /> Invite</>}
+            : <><Share2 className="h-3.5 w-3.5" strokeWidth={2} /> {meta.cta}</>}
     </button>
   )
 }
