@@ -17,6 +17,7 @@ import (
 
 	"ldr-server/db"
 	"ldr-server/models"
+	"ldr-server/ws"
 )
 
 // Accepts youtu.be/<id>, youtube.com/watch?v=<id>, youtube.com/shorts/<id>,
@@ -204,6 +205,13 @@ func CreateSong(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	song.ID = res.InsertedID.(bson.ObjectID)
+
+	// Server-side broadcast: receiver gets notified regardless of whether
+	// the sender's WebSocket is currently OPEN.
+	if Hub != nil {
+		msg := ws.MarshalMsg("song:sent", uid, body.Name, map[string]string{"id": song.ID.Hex()})
+		Hub.BroadcastAll(code, msg)
+	}
 
 	respond(w, http.StatusCreated, song)
 }

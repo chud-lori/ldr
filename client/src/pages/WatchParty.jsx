@@ -136,10 +136,15 @@ export default function WatchParty({ ws, online }) {
         }
         setTimeout(() => { isSyncingRef.current = false }, 500)
       }),
-      ws.on('chat:send', (msg) => setMessages((prev) => [...prev, {
-        userId: msg.userId, name: msg.name,
-        text: msg.payload.text, createdAt: Date.now(),
-      }])),
+      ws.on('chat:send', (msg) => {
+        // Server broadcast is all-in (BroadcastAll) so the sender echoes
+        // back too — skip it since they already added optimistically.
+        if (msg.userId === uid) return
+        setMessages((prev) => [...prev, {
+          userId: msg.userId, name: msg.name,
+          text: msg.payload.text, createdAt: Date.now(),
+        }])
+      }),
       ws.on('queue:changed', () => refreshWatchParty()),
       // Rename → renamer reconnects WS → server broadcasts presence:list to
       // the partner → refresh chat so already-loaded messages pick up the
@@ -194,12 +199,19 @@ export default function WatchParty({ ws, online }) {
     } catch {}
   }
 
-  function sendChat(e) {
+  async function sendChat(e) {
     e.preventDefault()
-    if (!chatInput.trim()) return
-    ws?.send('chat:send', { text: chatInput.trim() })
-    setMessages((prev) => [...prev, { userId: uid, name, text: chatInput.trim(), createdAt: Date.now() }])
+    const text = chatInput.trim()
+    if (!text) return
+    // Optimistic append so typing feels instant.
+    setMessages((prev) => [...prev, { userId: uid, name, text, createdAt: Date.now() }])
     setChatInput('')
+    try {
+      await api.post(`/rooms/${code}/chat`, { name, text })
+    } catch {
+      // On failure, leave the optimistic message — simpler than rolling back.
+      // Partner sees it on their next chat refresh if the server did write.
+    }
   }
 
   return (

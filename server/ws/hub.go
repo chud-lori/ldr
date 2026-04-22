@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	"log"
 	"sync"
 )
 
@@ -88,6 +89,10 @@ func (h *Hub) Run() {
 				select {
 				case c.Send <- msg.Data:
 				default:
+					// Receiver's send buffer is full. Drop rather than
+					// block the whole hub loop, but log so mystery
+					// "I didn't get X" reports are debuggable.
+					log.Printf("[ws] dropped msg for client %s in room %s: send buffer full", c.ID, msg.RoomID)
 				}
 			}
 			h.mu.RUnlock()

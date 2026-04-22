@@ -235,7 +235,8 @@ export default function Music({ ws, online = [] }) {
           onSent={(created) => {
             setComposing(false)
             setSongs((prev) => [created, ...prev])
-            ws?.send('song:sent', { id: created.id })
+            // `song:sent` is emitted server-side from CreateSong, so
+            // we don't need to send it from the client.
             toast(`Sent to ${partnerName} 💗`, 'success')
             setTab('sent')
           }}

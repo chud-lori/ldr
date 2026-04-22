@@ -82,6 +82,7 @@ func main() {
 			r.Delete("/rooms/{code}/watchparty/queue/{index}", handlers.RemoveFromQueue)
 			r.Post("/rooms/{code}/watchparty/next", handlers.PlayNext)
 			r.Get("/rooms/{code}/chat", handlers.GetChatHistory)
+			r.Post("/rooms/{code}/chat", handlers.SendChat)
 
 			r.Get("/rooms/{code}/puzzle", handlers.GetPuzzle)
 			r.Post("/rooms/{code}/puzzle", handlers.CreatePuzzle)

@@ -132,17 +132,6 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 			case msg.Type == "room:theme":
 				hub.Broadcast(code, outData, client)
 
-			case msg.Type == "chat:send":
-				var payload struct {
-					Text string `json:"text"`
-				}
-				json.Unmarshal(msg.Payload, &payload)
-				if payload.Text != "" {
-					go SaveChatMessage(code, uid, name, payload.Text)
-					// Broadcast excludes sender — sender already added message optimistically
-					hub.Broadcast(code, outData, client)
-				}
-
 			case msg.Type == "trivia:answer":
 				hub.Broadcast(code, outData, client)
 
@@ -175,10 +164,10 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 				// "come join me at /<feature>" toast + Join button on partner's side
 				hub.Broadcast(code, outData, client)
 
-			case msg.Type == "song:sent",
-				msg.Type == "song:heard",
+			case msg.Type == "song:heard",
 				msg.Type == "song:saved":
-				// Music letters — sender → receiver (sent), receiver → sender (heard/saved)
+				// Music letters — receiver → sender feedback.
+				// (`song:sent` is now emitted server-side from CreateSong.)
 				hub.Broadcast(code, outData, client)
 
 			case msg.Type == "presence:request":

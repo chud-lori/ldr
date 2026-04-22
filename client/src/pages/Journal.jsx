@@ -85,7 +85,8 @@ export default function Journal({ ws, online }) {
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
     await Promise.all([load(date), loadAll()])
-    ws?.send('journal:saved', { date })
+    // `journal:saved` is now emitted server-side from SaveJournal, so the
+    // partner is notified reliably regardless of this client's WS state.
     setSaving(false)
   }
 

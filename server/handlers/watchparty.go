@@ -15,6 +15,7 @@ import (
 
 	"ldr-server/db"
 	"ldr-server/models"
+	"ldr-server/ws"
 )
 
 func GetWatchParty(w http.ResponseWriter, r *http.Request) {
@@ -186,4 +187,33 @@ func SaveChatMessage(roomID, uid, name, text string) {
 		CreatedAt: time.Now().UnixMilli(),
 	}
 	db.Col("chat").InsertOne(ctx, msg)
+}
+
+// SendChat handles POST /rooms/:code/chat. Persists and server-broadcasts
+// so delivery is independent of the sender's WS state. Live typing in the
+// Watch Party page still reaches the partner via the existing chat:send
+// WS listener; the sender adds their own message optimistically.
+func SendChat(w http.ResponseWriter, r *http.Request) {
+	code := strings.ToUpper(chi.URLParam(r, "code"))
+	uid := userID(r)
+
+	var body struct {
+		Name string `json:"name"`
+		Text string `json:"text"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+	text := strings.TrimSpace(body.Text)
+	if text == "" {
+		http.Error(w, "text required", http.StatusBadRequest)
+		return
+	}
+
+	SaveChatMessage(code, uid, body.Name, text)
+
+	if Hub != nil {
+		msg := ws.MarshalMsg("chat:send", uid, body.Name, map[string]string{"text": text})
+		Hub.BroadcastAll(code, msg)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
