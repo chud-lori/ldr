@@ -58,6 +58,7 @@ import {
   Bookmark,
   Inbox,
   Send,
+  Eraser,
 } from 'lucide-react'
 
 // Small helper — passes through className, defaults size/strokeWidth.
@@ -117,6 +118,7 @@ export {
   Bookmark,
   Inbox,
   Send,
+  Eraser,
 }
 
 // Feature → nav icon. Single source of truth for nav + dashboard grid.

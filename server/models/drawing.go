@@ -11,7 +11,10 @@ type Stroke struct {
 	Color  string       `bson:"color" json:"color"`
 	Width  float64      `bson:"width" json:"width"`
 	Points [][2]float64 `bson:"points" json:"points"` // normalized 0..1 (x,y) pairs
-	At     time.Time    `bson:"at" json:"at"`
+	// Mode: "" or "draw" → pen stroke; "erase" → canvas eraser (uses
+	// destination-out composite so pixels underneath become transparent).
+	Mode string    `bson:"mode,omitempty" json:"mode,omitempty"`
+	At   time.Time `bson:"at" json:"at"`
 }
 
 type Drawing struct {

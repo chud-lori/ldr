@@ -2,11 +2,12 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
-import { Pencil } from '../lib/icons'
+import { Pencil, Eraser } from '../lib/icons'
 import InviteButton from '../components/InviteButton'
 
 const COLORS = ['#111827', '#ef4444', '#ec4899', '#3b82f6', '#10b981', '#f59e0b']
-const WIDTHS = [2, 4, 8]
+const PEN_WIDTHS = [2, 4, 8]
+const ERASER_WIDTHS = [10, 20, 40]
 
 export default function Draw({ ws, online }) {
   const { t } = useTheme()
@@ -15,9 +16,16 @@ export default function Draw({ ws, online }) {
   const canvasRef = useRef(null)
   const strokesRef = useRef([])
   const currentRef = useRef(null)
+  const [tool, setTool] = useState('pen')        // 'pen' | 'eraser'
   const [color, setColor] = useState(COLORS[0])
-  const [width, setWidth] = useState(WIDTHS[1])
+  const [penWidth, setPenWidth] = useState(PEN_WIDTHS[1])
+  const [eraserWidth, setEraserWidth] = useState(ERASER_WIDTHS[1])
   const [clearing, setClearing] = useState(false)
+
+  const isEraser = tool === 'eraser'
+  const width = isEraser ? eraserWidth : penWidth
+  const widths = isEraser ? ERASER_WIDTHS : PEN_WIDTHS
+  const setWidth = isEraser ? setEraserWidth : setPenWidth
 
   const render = useCallback(() => {
     const canvas = canvasRef.current
@@ -27,7 +35,9 @@ export default function Draw({ ws, online }) {
     ctx.clearRect(0, 0, cw, ch)
     const draw = (s) => {
       if (!s.points || s.points.length === 0) return
-      ctx.strokeStyle = s.color
+      // Eraser strokes punch holes via destination-out; pen strokes paint over.
+      ctx.globalCompositeOperation = s.mode === 'erase' ? 'destination-out' : 'source-over'
+      ctx.strokeStyle = s.color || '#000'
       ctx.lineWidth = s.width
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
@@ -42,6 +52,7 @@ export default function Draw({ ws, online }) {
     }
     strokesRef.current.forEach(draw)
     if (currentRef.current) draw(currentRef.current)
+    ctx.globalCompositeOperation = 'source-over'
   }, [])
 
   // Resize canvas to match its rendered CSS size (high-DPI aware)
@@ -106,7 +117,12 @@ export default function Draw({ ws, online }) {
     const p = pointFromEvent(e)
     if (!p) return
     e.currentTarget.setPointerCapture?.(e.pointerId)
-    currentRef.current = { color, width, points: [p] }
+    currentRef.current = {
+      color: isEraser ? '#000' : color,
+      width,
+      mode: isEraser ? 'erase' : 'draw',
+      points: [p],
+    }
     render()
   }
 
@@ -127,6 +143,7 @@ export default function Draw({ ws, online }) {
     ws?.send('draw:stroke', {
       color: stroke.color,
       width: stroke.width,
+      mode: stroke.mode,
       points: stroke.points,
     })
   }
@@ -155,19 +172,39 @@ export default function Draw({ ws, online }) {
       </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1.5">
-          {COLORS.map((c) => (
-            <button
-              key={c}
-              onClick={() => setColor(c)}
-              className={`w-7 h-7 rounded-full border-2 transition-transform ${color === c ? 'border-slate-700 scale-110' : 'border-white'}`}
-              style={{ backgroundColor: c }}
-              data-testid={`color-${c}`}
-              title={c}
-            />
-          ))}
+          <button
+            onClick={() => setTool('pen')}
+            data-testid="tool-pen"
+            title="Pen"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center border-2 ${!isEraser ? 'border-slate-700 bg-slate-50' : 'border-transparent text-slate-400 hover:bg-slate-50'}`}
+          >
+            <Pencil className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+          </button>
+          <button
+            onClick={() => setTool('eraser')}
+            data-testid="tool-eraser"
+            title="Eraser"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center border-2 ${isEraser ? 'border-slate-700 bg-slate-50' : 'border-transparent text-slate-400 hover:bg-slate-50'}`}
+          >
+            <Eraser className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+          </button>
         </div>
-        <div className="flex items-center gap-1.5 ml-2">
-          {WIDTHS.map((wv) => (
+        {!isEraser && (
+          <div className="flex items-center gap-1.5 ml-1">
+            {COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setColor(c)}
+                className={`w-7 h-7 rounded-full border-2 transition-transform ${color === c ? 'border-slate-700 scale-110' : 'border-white'}`}
+                style={{ backgroundColor: c }}
+                data-testid={`color-${c}`}
+                title={c}
+              />
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-1.5 ml-1">
+          {widths.map((wv) => (
             <button
               key={wv}
               onClick={() => setWidth(wv)}
@@ -175,7 +212,10 @@ export default function Draw({ ws, online }) {
               title={`${wv}px`}
               data-testid={`width-${wv}`}
             >
-              <span className="rounded-full bg-slate-700" style={{ width: wv + 2, height: wv + 2 }} />
+              <span
+                className={`rounded-full ${isEraser ? 'bg-slate-300' : 'bg-slate-700'}`}
+                style={{ width: Math.min(wv + 2, 22), height: Math.min(wv + 2, 22) }}
+              />
             </button>
           ))}
         </div>
