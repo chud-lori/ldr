@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
+import { Pencil } from '../lib/icons'
 
 const COLORS = ['#111827', '#ef4444', '#ec4899', '#3b82f6', '#10b981', '#f59e0b']
 const WIDTHS = [2, 4, 8]
@@ -192,8 +193,9 @@ export default function Draw({ ws }) {
           onPointerLeave={onPointerUp}
         />
       </div>
-      <p className="text-xs text-slate-400 text-center">
-        ✏️ Draw together — strokes sync in real time
+      <p className="text-xs text-slate-400 text-center inline-flex items-center justify-center gap-1.5 w-full">
+        <Pencil className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+        Draw together — strokes sync in real time
       </p>
     </div>
   )

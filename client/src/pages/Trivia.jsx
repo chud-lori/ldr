@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
+import { HelpCircle, X } from '../lib/icons'
 
 function QuestionCard({ q, uid, onAnswer, onDelete, t }) {
   const [answer, setAnswer] = useState('')
@@ -35,7 +36,9 @@ function QuestionCard({ q, uid, onAnswer, onDelete, t }) {
           <p className="text-sm font-medium text-slate-700 mt-0.5 leading-relaxed">{q.question}</p>
         </div>
         {isMine && (
-          <button onClick={() => onDelete(q.id)} className="text-slate-300 hover:text-red-400 text-lg leading-none flex-shrink-0">×</button>
+          <button onClick={() => onDelete(q.id)} className="text-slate-300 hover:text-red-400 flex-shrink-0 p-1 -m-1" aria-label="Delete question">
+            <X className="h-4 w-4" strokeWidth={2} />
+          </button>
         )}
       </div>
 
@@ -138,7 +141,10 @@ export default function Trivia({ ws }) {
       )}
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-        <h2 className="font-bold text-slate-800 mb-1">🎯 Ask About Yourself</h2>
+        <h2 className="font-bold text-slate-800 mb-1 inline-flex items-center gap-2">
+          <HelpCircle className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+          Ask About Yourself
+        </h2>
         <p className="text-xs text-slate-400 mb-3">Create questions for your partner to answer</p>
         <form onSubmit={addQuestion} className="space-y-2">
           <input
@@ -180,7 +186,9 @@ export default function Trivia({ ws }) {
 
       {questions.length === 0 && (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-100 shadow-sm">
-          <div className="text-5xl mb-3">🎯</div>
+          <div className={`mx-auto mb-3 h-14 w-14 rounded-2xl ${t.accentBg} ${t.accent} flex items-center justify-center`}>
+            <HelpCircle className="h-7 w-7" strokeWidth={2} aria-hidden="true" />
+          </div>
           <p className="text-slate-500 font-medium">No questions yet</p>
           <p className="text-slate-400 text-sm mt-1">Ask something about yourself above!</p>
         </div>

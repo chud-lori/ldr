@@ -93,7 +93,7 @@ test.describe('LDR presence & connection', () => {
 
     await pageA.getByRole('button', { name: /Thinking of Bob/i }).click()
     // Alice sees the sent confirmation
-    await expect(pageA.getByRole('button', { name: /✓ Sent/ })).toBeVisible()
+    await expect(pageA.getByRole('button', { name: /Sent/ })).toBeVisible()
 
     // Bob sees the toast
     await expect(pageB.getByText(/Alice is thinking of you/)).toBeVisible({ timeout: 3000 })
@@ -107,7 +107,7 @@ test.describe('LDR presence & connection', () => {
     const ctxA = await browser.newContext()
     const pageA = await enterRoom(ctxA, { code, user: alice, timezone: 'Asia/Jakarta' })
 
-    await pageA.getByRole('button', { name: '+ Add' }).click()
+    await pageA.getByRole('button', { name: /^Add$/ }).click()
     const form = pageA.locator('form', { has: pageA.getByPlaceholder('What are we counting down to?') })
     await form.getByPlaceholder('What are we counting down to?').fill('Bali trip')
     const future = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10)
@@ -120,7 +120,7 @@ test.describe('LDR presence & connection', () => {
     await expect(pageA.getByText(/^\d+d\s+\d+h$/)).toBeVisible()
 
     // Delete on hover — force click (Playwright bypasses opacity-0 via force)
-    await pageA.locator('li', { hasText: 'Bali trip' }).getByRole('button', { name: '×' }).click({ force: true })
+    await pageA.locator('li', { hasText: 'Bali trip' }).getByRole('button', { name: 'Remove milestone' }).click({ force: true })
     await expect(pageA.getByText('Bali trip')).toBeHidden()
 
     await ctxA.close()

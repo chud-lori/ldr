@@ -5,6 +5,7 @@ import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import { useToast } from '../components/Toast'
 import { DEFAULT_THEME } from '../lib/themes'
+import { Heart } from '../lib/icons'
 
 export default function Home() {
   const { setTheme } = useTheme()
@@ -100,7 +101,9 @@ export default function Home() {
     <div className="min-h-screen bg-rose-50 flex flex-col items-center justify-center p-4 gap-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
         <div className="text-center mb-6">
-          <div className="text-5xl mb-2">👩‍❤️‍👨</div>
+          <div className="mx-auto mb-3 h-14 w-14 rounded-2xl bg-rose-100 text-rose-500 flex items-center justify-center">
+            <Heart className="h-7 w-7" strokeWidth={2} aria-hidden="true" />
+          </div>
           <h1 className="text-2xl font-bold text-gray-800">LDR</h1>
           <p className="text-gray-400 text-sm mt-1">Stay close, no matter the distance</p>
         </div>

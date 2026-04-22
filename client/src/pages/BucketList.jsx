@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
+import { ListChecks, Gift, Check, X, Lock, CheckCircle2, Pin } from '../lib/icons'
 
 function SurpriseItem({ item, uid }) {
   const isLocked = item.surprise && item.userId !== uid && !item.text
@@ -9,7 +10,13 @@ function SurpriseItem({ item, uid }) {
     <div className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${
       item.done ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-slate-100'
     }`}>
-      <div className="mt-0.5 text-base">{item.done ? '✅' : isLocked ? '🔒' : '📌'}</div>
+      <div className="mt-0.5 text-slate-500">
+        {item.done
+          ? <CheckCircle2 className="h-4 w-4 text-emerald-500" strokeWidth={2} />
+          : isLocked
+            ? <Lock className="h-4 w-4" strokeWidth={2} />
+            : <Pin className="h-4 w-4" strokeWidth={2} />}
+      </div>
       <div className="flex-1 min-w-0">
         <div className="text-xs text-slate-400 mb-0.5 font-medium">{item.name}</div>
         {isLocked ? (
@@ -78,7 +85,10 @@ export default function BucketList() {
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-        <h2 className="font-bold text-slate-800 mb-3">🗺️ Bucket List</h2>
+        <h2 className="font-bold text-slate-800 mb-3 inline-flex items-center gap-2">
+          <ListChecks className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+          Bucket List
+        </h2>
         <form onSubmit={add} className="space-y-3">
           <textarea value={text} onChange={(e) => setText(e.target.value)}
             placeholder="Add something to do together…"
@@ -88,7 +98,8 @@ export default function BucketList() {
             <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
               <input type="checkbox" checked={surprise} onChange={(e) => setSurprise(e.target.checked)}
                 className={t.check} />
-              🎁 Surprise reveal
+              <Gift className="h-4 w-4 text-slate-400" strokeWidth={2} aria-hidden="true" />
+              Surprise reveal
             </label>
             {surprise && (
               <input type="date" value={revealAt} onChange={(e) => setRevealAt(e.target.value)}
@@ -112,8 +123,12 @@ export default function BucketList() {
                 <div className="flex-1"><SurpriseItem item={item} uid={uid} /></div>
                 {item.userId === uid && (
                   <div className="flex flex-col gap-1 shrink-0">
-                    <button onClick={() => toggleDone(item)} className="w-8 h-8 flex items-center justify-center rounded-lg text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 text-base font-bold">✓</button>
-                    <button onClick={() => remove(item)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 text-base">✕</button>
+                    <button onClick={() => toggleDone(item)} className="w-8 h-8 flex items-center justify-center rounded-lg text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50" aria-label="Mark done">
+                      <Check className="h-4 w-4" strokeWidth={2.5} />
+                    </button>
+                    <button onClick={() => remove(item)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50" aria-label="Remove">
+                      <X className="h-4 w-4" strokeWidth={2} />
+                    </button>
                   </div>
                 )}
               </div>
@@ -130,7 +145,9 @@ export default function BucketList() {
               <div key={item.id} className="flex items-start gap-2">
                 <div className="flex-1"><SurpriseItem item={item} uid={uid} /></div>
                 {item.userId === uid && (
-                  <button onClick={() => remove(item)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 shrink-0">✕</button>
+                  <button onClick={() => remove(item)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 shrink-0" aria-label="Remove">
+                    <X className="h-4 w-4" strokeWidth={2} />
+                  </button>
                 )}
               </div>
             ))}
@@ -140,7 +157,9 @@ export default function BucketList() {
 
       {items.length === 0 && (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-100 shadow-sm">
-          <div className="text-5xl mb-3">🗺️</div>
+          <div className={`mx-auto mb-3 h-14 w-14 rounded-2xl ${t.accentBg} ${t.accent} flex items-center justify-center`}>
+            <ListChecks className="h-7 w-7" strokeWidth={2} aria-hidden="true" />
+          </div>
           <p className="text-slate-500 font-medium">Your bucket list is empty</p>
           <p className="text-slate-400 text-sm mt-1">Start planning things to do together!</p>
         </div>

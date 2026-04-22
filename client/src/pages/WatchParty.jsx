@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
+import {
+  Tv, ListMusic, MessageCircle, X, SkipForward, ArrowUp, AlertTriangle,
+} from '../lib/icons'
 
 function extractVideoId(input) {
   if (!input) return null
@@ -215,11 +218,13 @@ export default function WatchParty({ ws }) {
       {queue.length > 0 && (
         <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100" data-testid="queue-panel">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              📝 Up next · {queue.length}
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide inline-flex items-center gap-1.5">
+              <ListMusic className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+              Up next · {queue.length}
             </p>
-            <button onClick={playNext} data-testid="queue-next" className={`text-xs font-semibold ${t.accent} hover:underline`}>
-              Play next ▶
+            <button onClick={playNext} data-testid="queue-next" className={`text-xs font-semibold ${t.accent} hover:underline inline-flex items-center gap-1`}>
+              Play next
+              <SkipForward className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
             </button>
           </div>
           <ul className="space-y-1">
@@ -230,9 +235,12 @@ export default function WatchParty({ ws }) {
                 <button
                   onClick={() => removeFromQueue(i)}
                   data-testid={`queue-remove-${i}`}
-                  className="text-slate-300 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
                   title="Remove"
-                >×</button>
+                  aria-label="Remove from queue"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2} />
+                </button>
               </li>
             ))}
           </ul>
@@ -241,7 +249,7 @@ export default function WatchParty({ ws }) {
 
       {pendingVideoId && (
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <span className="text-lg shrink-0">🎬</span>
+          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" strokeWidth={2} aria-hidden="true" />
           <p className="flex-1 text-sm text-amber-800 font-medium">Partner wants to change the video</p>
           <button
             onClick={() => { setCurrentVideoId(pendingVideoId); setPendingVideoId(null) }}
@@ -261,7 +269,9 @@ export default function WatchParty({ ws }) {
       ) : (
         <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 aspect-video flex items-center justify-center">
           <div className="text-center">
-            <div className="text-4xl mb-2">🎬</div>
+            <div className={`mx-auto mb-2 h-12 w-12 rounded-xl ${t.accentBg} ${t.accent} flex items-center justify-center`}>
+              <Tv className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
+            </div>
             <p className="text-slate-500 font-medium text-sm">Paste a YouTube link to start watching</p>
             <p className="text-slate-400 text-xs mt-1">Both of you will stay in sync</p>
           </div>
@@ -270,7 +280,10 @@ export default function WatchParty({ ws }) {
 
       {/* Chat */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-64">
-        <div className="px-4 py-2.5 border-b border-slate-100 text-sm font-semibold text-slate-600">💬 Chat</div>
+        <div className="px-4 py-2.5 border-b border-slate-100 text-sm font-semibold text-slate-600 inline-flex items-center gap-2">
+          <MessageCircle className="h-4 w-4 text-slate-500" strokeWidth={2} aria-hidden="true" />
+          Chat
+        </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {messages.length === 0 && (
             <p className="text-center text-slate-400 text-sm py-4">No messages yet. Say hi!</p>
@@ -294,7 +307,9 @@ export default function WatchParty({ ws }) {
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
           />
-          <button type="submit" className={`${t.btn} px-3 rounded-xl text-sm`}>↑</button>
+          <button type="submit" className={`${t.btn} px-3 rounded-xl`} aria-label="Send message">
+            <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
+          </button>
         </form>
       </div>
     </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
+import { PuzzleIcon, Sparkles } from '../lib/icons'
 
 export default function Puzzle({ ws }) {
   const { t } = useTheme()
@@ -130,7 +131,10 @@ export default function Puzzle({ ws }) {
   if (!puzzle) return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-        <h2 className="font-bold text-slate-800 mb-1">🧩 Collaborative Puzzle</h2>
+        <h2 className="font-bold text-slate-800 mb-1 inline-flex items-center gap-2">
+          <PuzzleIcon className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+          Collaborative Puzzle
+        </h2>
         <p className="text-xs text-slate-400 mb-4">Both of you solve the same puzzle in real-time</p>
         <form onSubmit={createPuzzle} className="space-y-3">
           <input
@@ -159,7 +163,9 @@ export default function Puzzle({ ws }) {
       </div>
 
       <div className="text-center py-10 bg-white rounded-2xl border border-slate-100 shadow-sm">
-        <div className="text-5xl mb-3">🧩</div>
+        <div className={`mx-auto mb-3 h-14 w-14 rounded-2xl ${t.accentBg} ${t.accent} flex items-center justify-center`}>
+          <PuzzleIcon className="h-7 w-7" strokeWidth={2} aria-hidden="true" />
+        </div>
         <p className="text-slate-500 font-medium">No puzzle started yet</p>
         <p className="text-slate-400 text-sm mt-1">Create one above to play together</p>
       </div>
@@ -170,7 +176,10 @@ export default function Puzzle({ ws }) {
     <div className="space-y-3">
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-slate-800">🧩 Puzzle</h2>
+          <h2 className="font-bold text-slate-800 inline-flex items-center gap-2">
+            <PuzzleIcon className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+            Puzzle
+          </h2>
           <button onClick={resetPuzzle} className="text-xs text-slate-400 hover:text-red-400 transition-colors">
             New puzzle
           </button>
@@ -178,7 +187,9 @@ export default function Puzzle({ ws }) {
 
         {completed ? (
           <div className="text-center py-4">
-            <div className="text-5xl mb-2">🎉</div>
+            <div className="mx-auto mb-2 h-14 w-14 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center">
+              <Sparkles className="h-7 w-7" strokeWidth={2} aria-hidden="true" />
+            </div>
             <p className={`font-bold ${t.accent} text-lg`}>Puzzle Complete!</p>
             <p className="text-slate-500 text-sm mt-1">You solved it together!</p>
             <div className="mt-4">{renderGrid()}</div>

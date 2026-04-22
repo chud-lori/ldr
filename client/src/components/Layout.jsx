@@ -3,16 +3,20 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import { api } from '../lib/api'
+import {
+  Home, BookOpen, Tv, ListChecks, HelpCircle, PuzzleIcon, Pencil,
+  History, X, PenLine,
+} from '../lib/icons'
 
 const nav = [
-  { to: '/dashboard', label: '🏠 Home' },
-  { to: '/journal', label: '📓 Journal' },
-  { to: '/watch', label: '🎬 Watch' },
-  { to: '/bucket', label: '🗺️ Bucket List' },
-  { to: '/trivia', label: '🎯 Trivia' },
-  { to: '/puzzle', label: '🧩 Puzzle' },
-  { to: '/draw', label: '✏️ Draw' },
-  { to: '/timeline', label: '📖 Timeline' },
+  { to: '/dashboard', label: 'Home',        Icon: Home },
+  { to: '/journal',   label: 'Journal',     Icon: BookOpen },
+  { to: '/watch',     label: 'Watch',       Icon: Tv },
+  { to: '/bucket',    label: 'Bucket List', Icon: ListChecks },
+  { to: '/trivia',    label: 'Trivia',      Icon: HelpCircle },
+  { to: '/puzzle',    label: 'Puzzle',      Icon: PuzzleIcon },
+  { to: '/draw',      label: 'Draw',        Icon: Pencil },
+  { to: '/timeline',  label: 'Timeline',    Icon: History },
 ]
 
 function UserSettings({ onClose, t }) {
@@ -44,7 +48,9 @@ function UserSettings({ onClose, t }) {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-slate-800">My Profile</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 -m-1 rounded" aria-label="Close">
+            <X className="h-5 w-5" strokeWidth={2} />
+          </button>
         </div>
 
         <form onSubmit={save} className="space-y-3">
@@ -102,9 +108,12 @@ export default function Layout({ children, ws, online = [] }) {
           {/* Guide */}
           <button
             onClick={() => navigate('/guide')}
-            className="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 text-sm font-bold transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
             title="How to use"
-          >?</button>
+            aria-label="Guide"
+          >
+            <HelpCircle className="h-4 w-4" strokeWidth={2} />
+          </button>
 
           {/* Your name + settings */}
           <button
@@ -112,27 +121,29 @@ export default function Layout({ children, ws, online = [] }) {
             className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors"
             title="Profile settings"
           >
-            <span className={`text-[9px] ${ws?.connected ? 'text-emerald-500' : 'text-slate-300'}`}>●</span>
+            <span className={`h-2 w-2 rounded-full ${ws?.connected ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-hidden="true" />
             <span>{name}</span>
-            <span className="text-slate-300">✎</span>
+            <PenLine className="h-3.5 w-3.5 text-slate-300" strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
       </header>
 
       <nav className="bg-white border-b border-slate-100 flex overflow-x-auto shadow-sm">
-        {nav.map(({ to, label }) => (
-          <Link
-            key={to}
-            to={to}
-            className={`px-4 py-2.5 text-sm whitespace-nowrap font-medium border-b-2 transition-colors ${
-              pathname === to || (to !== '/dashboard' && pathname.startsWith(to))
-                ? `border-b-2 ${t.navActive}`
-                : `border-transparent text-slate-500 ${t.navHover}`
-            }`}
-          >
-            {label}
-          </Link>
-        ))}
+        {nav.map(({ to, label, Icon }) => {
+          const active = pathname === to || (to !== '/dashboard' && pathname.startsWith(to))
+          return (
+            <Link
+              key={to}
+              to={to}
+              className={`px-4 py-2.5 text-sm whitespace-nowrap font-medium border-b-2 transition-colors inline-flex items-center gap-1.5 ${
+                active ? `border-b-2 ${t.navActive}` : `border-transparent text-slate-500 ${t.navHover}`
+              }`}
+            >
+              <Icon className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+              <span>{label}</span>
+            </Link>
+          )
+        })}
       </nav>
 
       <main className="flex-1 max-w-2xl w-full mx-auto p-4">

@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import { getDailyPrompt } from '../lib/prompts'
+import { BookOpen } from '../lib/icons'
 
 const MOODS = ['😊', '😔', '😍', '😴', '🥰', '😤', '😢', '🤩', '😌', '🥺']
 
@@ -79,7 +80,10 @@ export default function Journal() {
     <div className="space-y-4">
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-slate-800">📓 Journal</h2>
+          <h2 className="font-bold text-slate-800 inline-flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-slate-500" strokeWidth={2} aria-hidden="true" />
+            Journal
+          </h2>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
             className="text-sm border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-slate-400 text-slate-600" />
         </div>
