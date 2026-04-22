@@ -42,3 +42,6 @@ server/ldr-server
 # Coverage
 coverage
 .nyc_output
+
+# Working notes
+plan.md
