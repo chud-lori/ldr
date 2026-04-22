@@ -5,29 +5,53 @@ import { useTheme } from '../hooks/useTheme'
 import { HelpCircle, X } from '../lib/icons'
 import InviteButton from '../components/InviteButton'
 
+const MAX_ATTEMPTS = 3
+
 function QuestionCard({ q, uid, onAnswer, onDelete, t }) {
   const [answer, setAnswer] = useState('')
-  const [result, setResult] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [shakeKey, setShakeKey] = useState(0)
 
-  const myAttempt = q.attempts?.find((a) => a.userId === uid)
   const isMine = q.userId === uid
+  const myAttempts = (q.attempts || []).filter((a) => a.userId === uid)
+  const correctAttempt = myAttempts.find((a) => a.correct)
+  const attemptsUsed = myAttempts.length
+  const exhausted = attemptsUsed >= MAX_ATTEMPTS
+  const revealed = !!correctAttempt || exhausted
+  const revealedAnswer = correctAttempt
+    ? null
+    : myAttempts.find((a) => a.correctAnswer)?.correctAnswer
 
   async function submit(e) {
     e.preventDefault()
-    if (!answer.trim()) return
+    if (!answer.trim() || submitting) return
     setSubmitting(true)
     try {
-      const res = await api.post(`/rooms/${store.get('roomCode')}/trivia/${q.id}/answer`, {
+      await api.post(`/rooms/${store.get('roomCode')}/trivia/${q.id}/answer`, {
         name: store.get('userName'),
         answer,
       })
-      setResult(res)
+      setAnswer('')
+      setShakeKey((k) => k + 1) // flash "not quite" on wrong
       onAnswer?.()
     } finally {
       setSubmitting(false)
     }
   }
+
+  // Creator summary: "✓ Got it in N" / "Stumped after N" / "N in progress"
+  const creatorSummary = (() => {
+    if (!q.attempts?.length) return null
+    const correct = q.attempts.find((a) => a.correct)
+    if (correct) {
+      const tries = q.attempts.filter((a) => a.userId === correct.userId).length
+      return <span className="ml-3 text-xs text-emerald-600 font-medium">✓ Got it in {tries}</span>
+    }
+    if (q.attempts.length >= MAX_ATTEMPTS) {
+      return <span className="ml-3 text-xs text-slate-500 font-medium">✗ Stumped</span>
+    }
+    return <span className="ml-3 text-xs text-amber-600 font-medium">{q.attempts.length}/{MAX_ATTEMPTS} tried</span>
+  })()
 
   return (
     <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
@@ -47,38 +71,40 @@ function QuestionCard({ q, uid, onAnswer, onDelete, t }) {
         <div className="mt-2 bg-slate-50 rounded-lg px-3 py-2">
           <span className="text-xs text-slate-500">Answer: </span>
           <span className="text-xs font-semibold text-slate-700">{q.answer}</span>
-          {q.attempts?.length > 0 && (
-            <span className="ml-3 text-xs text-emerald-600 font-medium">
-              {q.attempts.filter((a) => a.correct).length}/{q.attempts.length} correct
-            </span>
-          )}
+          {creatorSummary}
         </div>
       )}
 
-      {!isMine && !myAttempt && !result && (
-        <form onSubmit={submit} className="flex gap-2 mt-3">
-          <input
-            className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-slate-400"
-            placeholder="Your answer…"
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-          />
-          <button type="submit" disabled={submitting}
-            className={`${t.btn} px-3 rounded-lg text-sm disabled:opacity-50`}>
-            ↑
-          </button>
+      {!isMine && !revealed && (
+        <form onSubmit={submit} className="mt-3 space-y-2">
+          {attemptsUsed > 0 && (
+            <div key={shakeKey} className="text-xs text-amber-600 font-medium">
+              Not quite · {MAX_ATTEMPTS - attemptsUsed} {MAX_ATTEMPTS - attemptsUsed === 1 ? 'try' : 'tries'} left
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-slate-400"
+              placeholder={`Your answer… (attempt ${attemptsUsed + 1}/${MAX_ATTEMPTS})`}
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              autoFocus={attemptsUsed > 0}
+            />
+            <button type="submit" disabled={submitting || !answer.trim()}
+              className={`${t.btn} px-3 rounded-lg text-sm disabled:opacity-50`}>
+              ↑
+            </button>
+          </div>
         </form>
       )}
 
-      {(myAttempt || result) && !isMine && (
+      {!isMine && revealed && (
         <div className={`mt-3 text-sm rounded-xl px-3 py-2.5 font-medium ${
-          (myAttempt?.correct || result?.correct)
-            ? 'bg-emerald-50 text-emerald-700'
-            : 'bg-red-50 text-red-700'
+          correctAttempt ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
         }`}>
-          {(myAttempt?.correct || result?.correct)
-            ? '✓ Correct! Well done 🎉'
-            : <>✗ Not quite · Correct answer: <span className="font-bold">"{result?.correctAnswer || myAttempt?.correctAnswer}"</span></>
+          {correctAttempt
+            ? <>✓ Correct! Got it in {attemptsUsed} {attemptsUsed === 1 ? 'try' : 'tries'} 🎉</>
+            : <>✗ Out of attempts · Correct answer: <span className="font-bold">"{revealedAnswer}"</span></>
           }
         </div>
       )}

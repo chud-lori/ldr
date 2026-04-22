@@ -104,8 +104,8 @@ export default function Guide() {
 
       <Section Icon={HelpCircle} title="Trivia">
         <p>Create questions <em>about yourself</em> for your partner to answer. They type their guess and see instantly if they're right.</p>
-        <p>Each question allows one attempt. If the answer is wrong, the correct answer is revealed — no retries, keep it honest!</p>
-        <p>Your own questions show the answer and a score of how many your partner got right.</p>
+        <p>Each question allows <strong>3 attempts</strong> before the answer is revealed. Answers are case-insensitive and forgive trailing punctuation, so "The Matrix" and "the matrix." both match.</p>
+        <p>Your own questions show a tiny summary: "Got it in N tries" or "Stumped" when your partner runs out of guesses.</p>
       </Section>
 
       <Section Icon={PuzzleIcon} title="Puzzle">

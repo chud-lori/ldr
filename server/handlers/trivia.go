@@ -69,6 +69,17 @@ func AddTrivia(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusCreated, q)
 }
 
+// MaxTriviaAttempts is the number of guesses per user per question before
+// the correct answer is revealed. Keeps the game honest ("three tries"
+// keeps it winnable without letting the user brute-force short answers).
+const MaxTriviaAttempts = 3
+
+// Forgiving answer comparison — case-insensitive, trims whitespace, and
+// ignores common trailing punctuation (`.`, `,`, `!`, `?`).
+func normalizeTriviaAnswer(s string) string {
+	return strings.TrimRight(strings.TrimSpace(s), ".,!?")
+}
+
 func AnswerTrivia(w http.ResponseWriter, r *http.Request) {
 	qid, _ := bson.ObjectIDFromHex(chi.URLParam(r, "id"))
 	uid := userID(r)
@@ -95,33 +106,52 @@ func AnswerTrivia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	correct := strings.EqualFold(strings.TrimSpace(body.Answer), strings.TrimSpace(q.Answer))
-
-	var correctAnswer string
-	if !correct {
-		correctAnswer = q.Answer
+	// Count prior attempts and short-circuit if this user is already done.
+	priorCount := 0
+	for _, a := range q.Attempts {
+		if a.UserID != uid {
+			continue
+		}
+		priorCount++
+		if a.Correct {
+			http.Error(w, "already answered correctly", http.StatusForbidden)
+			return
+		}
 	}
+	if priorCount >= MaxTriviaAttempts {
+		http.Error(w, "no attempts left", http.StatusForbidden)
+		return
+	}
+
+	correct := strings.EqualFold(normalizeTriviaAnswer(body.Answer), normalizeTriviaAnswer(q.Answer))
+	attemptNum := priorCount + 1
+	reveal := correct || attemptNum >= MaxTriviaAttempts
 
 	attempt := models.TriviaAttempt{
-		UserID:        uid,
-		Name:          body.Name,
-		Answer:        body.Answer,
-		Correct:       correct,
-		CorrectAnswer: correctAnswer,
-		CreatedAt:     time.Now(),
+		UserID:    uid,
+		Name:      body.Name,
+		Answer:    body.Answer,
+		Correct:   correct,
+		CreatedAt: time.Now(),
+	}
+	if reveal && !correct {
+		attempt.CorrectAnswer = q.Answer
 	}
 
-	// Remove any previous attempt by this user so they can re-answer.
-	db.Col("trivia").UpdateOne(ctx,
-		bson.M{"_id": qid},
-		bson.M{"$pull": bson.M{"attempts": bson.M{"userId": uid}}},
-	)
 	db.Col("trivia").UpdateOne(ctx,
 		bson.M{"_id": qid},
 		bson.M{"$push": bson.M{"attempts": attempt}},
 	)
 
-	respond(w, http.StatusOK, map[string]any{"correct": correct, "correctAnswer": q.Answer})
+	resp := map[string]any{
+		"correct":      correct,
+		"attemptsUsed": attemptNum,
+		"maxAttempts":  MaxTriviaAttempts,
+	}
+	if reveal {
+		resp["correctAnswer"] = q.Answer
+	}
+	respond(w, http.StatusOK, resp)
 }
 
 func DeleteTrivia(w http.ResponseWriter, r *http.Request) {
