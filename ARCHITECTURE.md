@@ -8,6 +8,7 @@ LDR Together is a private real-time web app for two people in a long-distance re
 
 ```
 ldr/
+├── Makefile         # make dev / server / client / test / build
 ├── server/          # Go API + WebSocket server
 │   ├── main.go
 │   ├── cleanup.go
@@ -20,7 +21,8 @@ ldr/
     │   ├── pages/
     │   ├── components/
     │   ├── hooks/
-    │   └── lib/
+    │   └── lib/         # icons.jsx, invite.js, notify.js, api.js, store.js, …
+    ├── tests/           # Playwright suite
     └── public/
 ```
 
@@ -87,13 +89,13 @@ A 30-second ping is sent from the client to keep Cloudflare's idle-connection ti
 
 ### Cleanup worker
 
-Runs in a background goroutine. Waits 10 minutes after startup, then runs every 24 hours. Deletes all rooms where `lastActiveAt` is older than 30 days, along with all associated documents in `journal`, `bucketlist`, `trivia`, `watchparty`, `chat`, and `puzzle` collections.
+Runs in a background goroutine. Waits 10 minutes after startup, then runs every 24 hours. Deletes all rooms where `lastActiveAt` is older than 30 days, along with all associated documents in `journal`, `bucketlist`, `trivia`, `watchparty`, `chat`, `puzzle`, `milestones`, and `drawing` collections. `DeleteRoom` (manual delete) uses the same list.
 
 ---
 
 ## Database
 
-One MongoDB database, ten collections:
+One MongoDB database, nine collections:
 
 | Collection | Key fields | Notes |
 |---|---|---|
@@ -125,6 +127,7 @@ There is no login. Identity is stored in `localStorage`:
 | `roomData` | last-fetched room object (cache) |
 | `theme` | active theme key |
 | `seenWelcome` | `"1"` after dismissing the welcome banner |
+| `notifyPermissionDeclined` | `"1"` if the user rejected the OS-notification permission, so we don't ask again |
 
 The personal link (`/?roomCode=X&userId=Y`) re-hydrates all keys from the URL, enabling multi-device use without accounts.
 
@@ -136,6 +139,7 @@ The personal link (`/?roomCode=X&userId=Y`) re-hydrates all keys from the URL, e
 - Reconnects automatically after 3 seconds on any close event.
 - Exposes a stable `on(type, fn)` → unsubscribe function interface backed by `listenersRef` (not React state) so handlers can be registered without triggering re-renders.
 - Returns a memoized `{ send, on, connected }` object — the reference only changes when `connected` changes, preventing unnecessary re-renders in children that depend on `ws`.
+- **StrictMode-safe:** tracks the current live WebSocket via an `activeRef` and ignores `onopen`/`onclose`/`onmessage` from any instance that isn't the active one. Without this, the abandoned first WebSocket from StrictMode's double-invoke would fire a late `onclose` and clobber `connected` back to `false` after the real connection was live, which showed up as a grey self-indicator on first join.
 
 `on(type, fn)` registers directly to the ref map. `onmessage` reads from the same ref map. This means listeners registered in a `useEffect` are live immediately without waiting for a re-render cycle.
 
@@ -143,8 +147,9 @@ The personal link (`/?roomCode=X&userId=Y`) re-hydrates all keys from the URL, e
 
 Global state is minimal and kept at the `AppRoutes` level:
 - `online` — current presence list, updated via `presence:list` WS events.
-- Toast notifications — managed by `ToastProvider` (React context).
+- Toast notifications — managed by `ToastProvider` (React context). Toasts support an optional `action` (button) and `duration: 0` for sticky invites.
 - Theme — managed by `ThemeProvider` (React context + localStorage).
+- Tab-title badge — a ref counter incremented on `nudge:send` / `invite:send` while `document.visibilityState === 'hidden'`; title becomes `💗 (n) LDR Together` until the tab is focused again.
 
 All feature state (journal entries, bucket list items, etc.) is local to each page component and fetched on mount. Pages re-fetch on relevant WS events where real-time updates are needed.
 
@@ -153,17 +158,22 @@ The `online` toast uses a `useRef` mirror of the online list to detect new arriv
 ### Routing
 
 ```
-/                → Home (create / join)
-/dashboard       → Dashboard
-/journal         → Journal
-/watch           → Watch Party
+/                → Home (create / join). Auto-redirects to /dashboard when
+                   localStorage has a valid session (Slack/Discord-style).
+/dashboard       → Dashboard (timezones, nudge, milestones, feature grid, stats)
+/journal         → Journal (live-sync via journal:saved)
+/watch           → Watch Party (shared queue, chat, YouTube sync)
 /bucket          → Bucket List
 /trivia          → Trivia
 /puzzle          → Puzzle
+/draw            → Shared canvas
+/timeline        → Auto-assembled memory of milestones / bucket completions / shared journal days
 /guide           → Guide
 ```
 
-All routes except `/` are wrapped in `RequireRoom`.
+All routes except `/` are wrapped in `RequireRoom`. "Leave this device"
+inside Room Settings clears localStorage and navigates to `/` without
+deleting the room server-side.
 
 ---
 
@@ -198,12 +208,10 @@ All routes except `/` are wrapped in `RequireRoom`.
 ## Development
 
 ```bash
-# Terminal 1 — server (uses MONGO_DB=test via server/.env)
-cd server && go run .
-
-# Terminal 2 — client (proxies /api and /ws to :8080)
-cd client && bun dev
+make dev     # server + client in one terminal, Ctrl+C stops both
 ```
+
+(or `make server` / `make client` for just one side, `make test` for the Playwright suite.)
 
 Vite proxies `/api` and `/ws` to `localhost:8080` in development. In production, nginx handles routing to the Go binary directly.
 
