@@ -138,6 +138,11 @@ func ListSongs(w http.ResponseWriter, r *http.Request) {
 	if songs == nil {
 		songs = []models.Song{}
 	}
+
+	members := memberNames(ctx, code)
+	for i := range songs {
+		songs[i].SenderName = freshName(members, songs[i].SenderID, songs[i].SenderName)
+	}
 	respond(w, http.StatusOK, songs)
 }
 

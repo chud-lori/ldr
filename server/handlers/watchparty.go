@@ -161,6 +161,11 @@ func GetChatHistory(w http.ResponseWriter, r *http.Request) {
 	var msgs []models.ChatMessage
 	cursor.All(ctx, &msgs)
 
+	members := memberNames(ctx, code)
+	for i := range msgs {
+		msgs[i].Name = freshName(members, msgs[i].UserID, msgs[i].Name)
+	}
+
 	// Reverse to chronological
 	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
 		msgs[i], msgs[j] = msgs[j], msgs[i]

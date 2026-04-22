@@ -20,7 +20,7 @@ const nav = [
   { to: '/timeline',  label: 'Timeline',    Icon: History },
 ]
 
-function UserSettings({ onClose, t }) {
+function UserSettings({ ws, onClose, t }) {
   const code = store.get('roomCode')
   const [name, setName] = useState(store.get('userName') || '')
   const [saving, setSaving] = useState(false)
@@ -33,8 +33,13 @@ function UserSettings({ onClose, t }) {
     setSaving(true)
     setError('')
     try {
-      await api.patch(`/rooms/${code}/me`, { name: name.trim() })
+      const updated = await api.patch(`/rooms/${code}/me`, { name: name.trim() })
       store.set('userName', name.trim())
+      if (updated) store.set('roomData', updated)
+      // Re-open the WS so the hub client picks up the new name for
+      // presence + chat broadcasts. REST responses are already freshened
+      // server-side by memberNames().
+      ws?.reconnect?.()
       setSaved(true)
       setTimeout(() => { setSaved(false); onClose() }, 800)
     } catch (err) {
@@ -152,7 +157,7 @@ export default function Layout({ children, ws, online = [] }) {
       </main>
 
       {showUserSettings && (
-        <UserSettings onClose={() => setShowUserSettings(false)} t={t} />
+        <UserSettings ws={ws} onClose={() => setShowUserSettings(false)} t={t} />
       )}
     </div>
   )

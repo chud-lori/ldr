@@ -29,8 +29,10 @@ func GetBucketList(w http.ResponseWriter, r *http.Request) {
 	var items []models.BucketItem
 	cursor.All(ctx, &items)
 
+	members := memberNames(ctx, code)
 	now := time.Now()
 	for i := range items {
+		items[i].Name = freshName(members, items[i].UserID, items[i].Name)
 		// Hide surprise item content from non-creator until reveal date
 		if items[i].Surprise && items[i].UserID != uid {
 			if items[i].RevealAt != nil && items[i].RevealAt.After(now) {

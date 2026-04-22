@@ -38,8 +38,10 @@ func GetJournal(w http.ResponseWriter, r *http.Request) {
 	var entries []models.JournalEntry
 	cursor.All(ctx, &entries)
 
+	members := memberNames(ctx, code)
 	var myEntry, partnerEntry *models.JournalEntry
 	for i := range entries {
+		entries[i].Name = freshName(members, entries[i].UserID, entries[i].Name)
 		if entries[i].UserID == uid {
 			myEntry = &entries[i]
 		} else {
@@ -80,9 +82,11 @@ func GetJournalAll(w http.ResponseWriter, r *http.Request) {
 		MyEntry      *models.JournalEntry `json:"myEntry"`
 		PartnerEntry *models.JournalEntry `json:"partnerEntry"`
 	}
+	members := memberNames(ctx, code)
 	dateMap := map[string]*DatePair{}
 	for i := range all {
 		e := &all[i]
+		e.Name = freshName(members, e.UserID, e.Name)
 		if dateMap[e.Date] == nil {
 			dateMap[e.Date] = &DatePair{Date: e.Date}
 		}

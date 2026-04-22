@@ -90,8 +90,32 @@ export function useWebSocket(roomCode) {
     }
   }, [])
 
+  // Force-reconnect so the hub client picks up fresh query params (notably
+  // `name` — the Client struct on the server keeps whatever was sent at
+  // connect time, so a rename in Settings only takes effect for
+  // presence/chat broadcasts after the socket is re-opened).
+  const reconnect = useCallback(() => {
+    const old = wsRef.current
+    if (old) {
+      old.onopen = null
+      old.onclose = null
+      old.onmessage = null
+      activeRef.current = null
+      try { old.close() } catch {}
+    }
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current)
+      reconnectTimer.current = null
+    }
+    if (pingTimer.current) {
+      clearInterval(pingTimer.current)
+      pingTimer.current = null
+    }
+    connect()
+  }, [connect])
+
   // Memoize so the object reference only changes when connection status changes.
   // Without this, every parent re-render creates a new object → useEffect([ws])
   // in child components fires constantly, breaking listener registration.
-  return useMemo(() => ({ send, on, connected }), [send, on, connected])
+  return useMemo(() => ({ send, on, connected, reconnect }), [send, on, connected, reconnect])
 }

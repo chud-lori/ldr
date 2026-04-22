@@ -655,11 +655,18 @@ export default function Dashboard({ ws, online = [] }) {
 
   useEffect(() => {
     if (!ws) return
-    return ws.on('presence:list', () => {
+    const refetch = () => {
       api.get(`/rooms/${code}`).then((data) => {
         if (data) { setRoomData(data); store.set('roomData', data) }
       }).catch(() => {})
-    })
+    }
+    // presence:list on connect/disconnect; room:updated after a rename or
+    // theme change — either one should freshen the local roomData cache.
+    const offs = [
+      ws.on('presence:list', refetch),
+      ws.on('room:updated', refetch),
+    ]
+    return () => offs.forEach((off) => off())
   }, [ws, code])
 
   async function saveMeetup() {

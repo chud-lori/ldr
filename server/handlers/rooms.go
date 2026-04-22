@@ -15,7 +15,19 @@ import (
 
 	"ldr-server/db"
 	"ldr-server/models"
+	"ldr-server/ws"
 )
+
+// broadcastRoomUpdate tells everyone in the room to refetch their room
+// metadata (name, theme, members). Used after UpdateRoom / UpdateMe so
+// partner views don't go stale without a reconnect.
+func broadcastRoomUpdate(code, uid string) {
+	if Hub == nil {
+		return
+	}
+	msg := ws.MarshalMsg("room:updated", uid, "", nil)
+	Hub.BroadcastAll(code, msg)
+}
 
 const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
@@ -169,6 +181,7 @@ func UpdateMe(w http.ResponseWriter, r *http.Request) {
 
 	var updated models.Room
 	db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&updated)
+	broadcastRoomUpdate(code, uid)
 	respond(w, http.StatusOK, updated)
 }
 
@@ -219,6 +232,7 @@ func UpdateRoom(w http.ResponseWriter, r *http.Request) {
 
 	var updated models.Room
 	db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&updated)
+	broadcastRoomUpdate(code, uid)
 	respond(w, http.StatusOK, updated)
 }
 

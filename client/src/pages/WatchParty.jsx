@@ -46,12 +46,17 @@ export default function WatchParty({ ws, online }) {
     } catch {}
   }, [code])
 
+  const refreshChat = useCallback(async () => {
+    try {
+      const data = await api.get(`/rooms/${code}/chat`)
+      if (Array.isArray(data)) setMessages(data)
+    } catch {}
+  }, [code])
+
   useEffect(() => {
     refreshWatchParty()
-    api.get(`/rooms/${code}/chat`).then((data) => {
-      if (Array.isArray(data)) setMessages(data)
-    }).catch(() => {})
-  }, [code, refreshWatchParty])
+    refreshChat()
+  }, [code, refreshWatchParty, refreshChat])
 
   useEffect(() => {
     if (!currentVideoId) return
@@ -136,9 +141,14 @@ export default function WatchParty({ ws, online }) {
         text: msg.payload.text, createdAt: Date.now(),
       }])),
       ws.on('queue:changed', () => refreshWatchParty()),
+      // Rename → renamer reconnects WS → server broadcasts presence:list to
+      // the partner → refresh chat so already-loaded messages pick up the
+      // new display name from GetChatHistory's server-side override.
+      ws.on('presence:list', () => refreshChat()),
+      ws.on('room:updated', () => refreshChat()),
     ]
     return () => offs.forEach((off) => off())
-  }, [ws, refreshWatchParty])
+  }, [ws, refreshWatchParty, refreshChat])
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })

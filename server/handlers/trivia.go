@@ -29,10 +29,16 @@ func GetTrivia(w http.ResponseWriter, r *http.Request) {
 	var questions []models.TriviaQuestion
 	cursor.All(ctx, &questions)
 
-	// Mask the correct answer for questions the requester didn't create.
+	members := memberNames(ctx, code)
+	// Mask the correct answer for questions the requester didn't create,
+	// and refresh denormalized names from the room's live member list.
 	for i := range questions {
 		if questions[i].UserID != uid {
 			questions[i].Answer = ""
+		}
+		questions[i].Name = freshName(members, questions[i].UserID, questions[i].Name)
+		for j := range questions[i].Attempts {
+			questions[i].Attempts[j].Name = freshName(members, questions[i].Attempts[j].UserID, questions[i].Attempts[j].Name)
 		}
 	}
 
