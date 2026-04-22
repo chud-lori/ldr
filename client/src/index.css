@@ -1,9 +1,15 @@
 @import "tailwindcss";
 
+/* Tell the UA we're a light-mode app. Prevents Chrome/Samsung Browser's
+   "Force dark" from repainting pastel surfaces into a muddy dark theme. */
+html { color-scheme: light; }
+
 * { box-sizing: border-box; }
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
+  background: #f8fafc; /* slate-50 — explicit so the UA can't pick a dark default */
+  color: #0f172a;      /* slate-900 */
   /* Reserve space for iPhone home indicator */
   padding-bottom: env(safe-area-inset-bottom);
 }

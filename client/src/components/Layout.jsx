@@ -45,8 +45,8 @@ function UserSettings({ onClose, t }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5 space-y-4">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-xs p-5 space-y-4 max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-slate-800">My Profile</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 -m-1 rounded" aria-label="Close">
