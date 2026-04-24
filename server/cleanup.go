@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"ldr-server/db"
+	"ldr-server/handlers"
 )
 
 func startCleanupWorker() {
@@ -30,6 +31,11 @@ func runCleanup() {
 
 	sweepInactiveRooms(ctx)
 	sweepFadedSongs(ctx)
+	if n, err := handlers.SweepFadedFilms(ctx); err != nil {
+		log.Printf("[cleanup] film sweep error: %v", err)
+	} else if n > 0 {
+		log.Printf("[cleanup] purged %d faded film rolls", n)
+	}
 }
 
 func sweepInactiveRooms(ctx context.Context) {
@@ -51,9 +57,10 @@ func sweepInactiveRooms(ctx context.Context) {
 	}
 
 	for _, r := range rooms {
-		for _, col := range []string{"journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle", "milestones", "drawing", "songs", "moods"} {
+		for _, col := range []string{"journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle", "milestones", "drawing", "songs", "moods", "messages", "films"} {
 			db.Col(col).DeleteMany(ctx, bson.M{"roomId": r.Code})
 		}
+		handlers.PurgeRoomMedia(r.Code)
 		db.Col("rooms").DeleteOne(ctx, bson.M{"code": r.Code})
 	}
 

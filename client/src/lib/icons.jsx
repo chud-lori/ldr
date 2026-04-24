@@ -61,6 +61,10 @@ import {
   Eraser,
   Smile,
   HandHeart,
+  Mail,
+  Camera,
+  Download,
+  Film,
 } from 'lucide-react'
 
 // Small helper — passes through className, defaults size/strokeWidth.
@@ -123,6 +127,10 @@ export {
   Eraser,
   Smile,
   HandHeart,
+  Mail,
+  Camera,
+  Download,
+  Film,
 }
 
 // Feature → nav icon. Single source of truth for nav + dashboard grid.

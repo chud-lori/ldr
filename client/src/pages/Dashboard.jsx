@@ -7,8 +7,9 @@ import {
   Settings, X, Plus, Heart, Clock, Link2, CalendarHeart,
   Flame, BookOpen, BookMarked, Tv, ListChecks, HelpCircle, PuzzleIcon,
   Pencil, History, AlertTriangle, Sprout, Sparkles, Zap, Check, Copy,
-  Cake, Plane, Pin, Lock, Music2, Smile, HandHeart,
+  Cake, Plane, Pin, Lock, Music2, Smile, HandHeart, Mail, Send, Camera,
 } from '../lib/icons'
+import { useToast } from '../components/Toast'
 import { maybeRequestPermission } from '../lib/notify'
 
 function calcStreak(allDates) {
@@ -183,6 +184,8 @@ function TimezoneStrip({ ws, roomData, online, t }) {
     return live || m.timezone || ''
   }
 
+  const resolveLocation = (m, tz) => m.location?.trim() || (tz ? formatTZ(tz) : '')
+
   const partner = members.find((m) => m.userId !== uid)
   const partnerOnline = partner && online.some((u) => u.userId === partner.userId)
 
@@ -214,7 +217,7 @@ function TimezoneStrip({ ws, roomData, online, t }) {
                 {tz ? localTime(tz) : '—:—'}
               </div>
               <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                {tz ? formatTZ(tz) : 'not yet online'}
+                {tz ? resolveLocation(m, tz) : 'not yet online'}
               </div>
             </div>
           )
@@ -259,6 +262,140 @@ function shortAgo(iso) {
   const h = Math.floor(m / 60)
   if (h < 24) return `${h}h ago`
   return `${Math.floor(h / 24)}d ago`
+}
+
+function NotesCard({ ws, roomData, t }) {
+  const toast = useToast()
+  const code = store.get('roomCode')
+  const uid = store.get('userId')
+  const name = store.get('userName')
+  const partner = (roomData?.members || []).find((m) => m.userId !== uid)
+
+  const [unread, setUnread] = useState([])
+  const [composing, setComposing] = useState(false)
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const refresh = useCallback(() => {
+    api.get(`/rooms/${code}/messages`)
+      .then((d) => setUnread(Array.isArray(d) ? d : []))
+      .catch(() => {})
+  }, [code])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  useEffect(() => {
+    if (!ws) return
+    return ws.on('message:new', (msg) => {
+      if (msg.userId === uid) return
+      refresh()
+    })
+  }, [ws, uid, refresh])
+
+  async function markRead(id) {
+    // Optimistic remove so the card collapses instantly.
+    setUnread((prev) => prev.filter((m) => m.id !== id))
+    try {
+      await api.post(`/rooms/${code}/messages/${id}/read`, {})
+    } catch {
+      refresh()
+    }
+  }
+
+  async function send() {
+    const t = text.trim()
+    if (!t || sending) return
+    setSending(true)
+    try {
+      await api.post(`/rooms/${code}/messages`, { name, text: t })
+      setText('')
+      setComposing(false)
+      toast(`Note sent to ${partner?.name || 'them'} 💗`, 'success')
+    } catch (err) {
+      toast(err?.message || 'Failed to send', 'error')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide inline-flex items-center gap-1.5">
+        <Mail className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+        Notes
+        {unread.length > 0 && (
+          <span className="ml-1 text-[10px] font-bold bg-rose-500 text-white rounded-full px-1.5 py-0.5">
+            {unread.length}
+          </span>
+        )}
+      </p>
+
+      {unread.length > 0 && (
+        <div className="space-y-2">
+          {unread.map((m) => (
+            <div key={m.id} className={`rounded-xl p-3 ${t.codeBg} space-y-2`} data-testid={`note-${m.id}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-700">{m.senderName}</span>
+                <span className="text-[10px] text-slate-400">{shortAgo(m.createdAt)}</span>
+              </div>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{m.text}</p>
+              <button
+                onClick={() => markRead(m.id)}
+                data-testid={`note-read-${m.id}`}
+                className={`text-xs font-semibold ${t.accent} hover:underline`}
+              >
+                Mark read · note will fade
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!composing && (
+        <button
+          onClick={() => setComposing(true)}
+          data-testid="open-compose-note"
+          className="w-full text-left text-sm text-slate-400 hover:text-slate-600 border border-dashed border-slate-200 rounded-xl px-3 py-2.5"
+        >
+          Leave {partner?.name || 'them'} a note…
+        </button>
+      )}
+
+      {composing && (
+        <div className="space-y-2">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Whatever you want them to read when they come back…"
+            rows={3}
+            maxLength={300}
+            autoFocus
+            data-testid="compose-note"
+            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-slate-400 resize-none text-slate-700"
+          />
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-slate-400 tabular-nums">{300 - text.length}</span>
+            <div className="flex-1" />
+            <button
+              onClick={() => { setComposing(false); setText('') }}
+              className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1.5"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={send}
+              disabled={!text.trim() || sending}
+              data-testid="send-note"
+              className={`${t.btn} px-3 py-1.5 rounded-xl text-xs font-semibold disabled:opacity-50 inline-flex items-center gap-1.5`}
+            >
+              <Send className="h-3.5 w-3.5" strokeWidth={2.5} />
+              Send
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function MoodCard({ ws, roomData, t }) {
@@ -886,6 +1023,7 @@ export default function Dashboard({ ws, online = [] }) {
     { to: '/puzzle',   Icon: PuzzleIcon,  label: 'Puzzle',      desc: 'Solve together in real-time' },
     { to: '/draw',     Icon: Pencil,      label: 'Draw',        desc: 'Shared canvas, live strokes' },
     { to: '/music',    Icon: Music2,      label: 'Song Letters', desc: 'Send a song with a note' },
+    { to: '/film',     Icon: Camera,      label: 'Film Roll',    desc: 'Weekly photo + video reveal' },
     { to: '/timeline', Icon: History,     label: 'Timeline',    desc: 'Your story, together' },
   ]
 
@@ -906,12 +1044,16 @@ export default function Dashboard({ ws, online = [] }) {
                 const isOnline = m.userId === uid
                   ? ws?.connected
                   : online.some((u) => u.userId === m.userId)
+                const showLastSeen = !isOnline && m.userId !== uid && m.lastSeenAt
                 return (
                   <span key={m.userId} className={`text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1.5 ${
                     isOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
                   }`}>
                     <span className={`h-2 w-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-300 ring-1 ring-slate-400'}`} aria-hidden="true" />
                     {m.name}
+                    {showLastSeen && (
+                      <span className="text-[10px] opacity-75 ml-0.5">· {shortAgo(m.lastSeenAt)}</span>
+                    )}
                   </span>
                 )
               })}
@@ -948,6 +1090,8 @@ export default function Dashboard({ ws, online = [] }) {
       </div>
 
       <TimezoneStrip ws={ws} roomData={roomData} online={online} t={t} />
+
+      <NotesCard ws={ws} roomData={roomData} t={t} />
 
       <MoodCard ws={ws} roomData={roomData} t={t} />
 

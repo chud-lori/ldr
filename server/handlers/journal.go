@@ -155,3 +155,144 @@ func SaveJournal(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// allowedReactions are the only emojis accepted on /react. Locked down so
+// the journal stays a quick "I'm here for you" surface, not a full reaction
+// picker.
+var allowedReactions = map[string]bool{
+	"❤️": true, "🤗": true, "💪": true, "😢": true, "🔥": true,
+}
+
+// React toggles the caller's reaction on a partner's entry for a given
+// date. Tapping the same emoji again removes it; tapping a different one
+// replaces it. Both partners must have written that day or 403.
+func ReactJournal(w http.ResponseWriter, r *http.Request) {
+	code := strings.ToUpper(chi.URLParam(r, "code"))
+	uid := userID(r)
+	date := chi.URLParam(r, "date")
+	ownerID := chi.URLParam(r, "userId")
+
+	if ownerID == uid {
+		http.Error(w, "react on your own entry?", http.StatusForbidden)
+		return
+	}
+
+	var body struct {
+		Emoji string `json:"emoji"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+	if body.Emoji != "" && !allowedReactions[body.Emoji] {
+		http.Error(w, "unsupported emoji", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if !bothWroteOn(ctx, code, date) {
+		http.Error(w, "wait for both to write today", http.StatusForbidden)
+		return
+	}
+
+	filter := bson.M{"roomId": code, "userId": ownerID, "date": date}
+
+	// Always pull the caller's existing reaction first; if a new emoji is
+	// supplied, push the replacement.
+	db.Col("journal").UpdateOne(ctx, filter,
+		bson.M{"$pull": bson.M{"reactions": bson.M{"userId": uid}}},
+	)
+
+	// Empty emoji = toggle off (just leave it pulled).
+	if body.Emoji != "" {
+		db.Col("journal").UpdateOne(ctx, filter,
+			bson.M{"$push": bson.M{"reactions": models.JournalReaction{
+				UserID: uid, Emoji: body.Emoji, At: time.Now(),
+			}}},
+		)
+	}
+
+	if Hub != nil {
+		msg := ws.MarshalMsg("journal:reacted", uid, "", map[string]string{
+			"date":    date,
+			"ownerId": ownerID,
+		})
+		Hub.BroadcastAll(code, msg)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Cheer attaches a one-line cheer note to a partner's entry. 120-char cap
+// keeps it a cheer, not a conversation. Empty text removes the existing
+// cheer. Same both-must-have-written gate as React.
+func CheerJournal(w http.ResponseWriter, r *http.Request) {
+	code := strings.ToUpper(chi.URLParam(r, "code"))
+	uid := userID(r)
+	date := chi.URLParam(r, "date")
+	ownerID := chi.URLParam(r, "userId")
+
+	if ownerID == uid {
+		http.Error(w, "cheer on your own entry?", http.StatusForbidden)
+		return
+	}
+
+	var body struct {
+		Text string `json:"text"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+	text := strings.TrimSpace(body.Text)
+	if len(text) > 120 {
+		text = text[:120]
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if !bothWroteOn(ctx, code, date) {
+		http.Error(w, "wait for both to write today", http.StatusForbidden)
+		return
+	}
+
+	filter := bson.M{"roomId": code, "userId": ownerID, "date": date}
+
+	// Replace any existing cheer from this user.
+	db.Col("journal").UpdateOne(ctx, filter,
+		bson.M{"$pull": bson.M{"cheers": bson.M{"userId": uid}}},
+	)
+	if text != "" {
+		db.Col("journal").UpdateOne(ctx, filter,
+			bson.M{"$push": bson.M{"cheers": models.JournalCheer{
+				UserID: uid, Text: text, At: time.Now(),
+			}}},
+		)
+	}
+
+	if Hub != nil {
+		msg := ws.MarshalMsg("journal:cheered", uid, "", map[string]string{
+			"date":    date,
+			"ownerId": ownerID,
+		})
+		Hub.BroadcastAll(code, msg)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// bothWroteOn returns true if every member of the room has a journal
+// entry for the given date — the gate for reveal-only features (reactions
+// and cheers).
+func bothWroteOn(ctx context.Context, code, date string) bool {
+	var room models.Room
+	if err := db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&room); err != nil {
+		return false
+	}
+	for _, m := range room.Members {
+		n, _ := db.Col("journal").CountDocuments(ctx,
+			bson.M{"roomId": code, "userId": m.UserID, "date": date},
+		)
+		if n == 0 {
+			return false
+		}
+	}
+	return len(room.Members) >= 2
+}

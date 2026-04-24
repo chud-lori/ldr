@@ -89,21 +89,22 @@ A 30-second ping is sent from the client to keep Cloudflare's idle-connection ti
 
 ### Cleanup worker
 
-Runs in a background goroutine. Waits 10 minutes after startup, then runs every 24 hours. Two sweeps:
+Runs in a background goroutine. Waits 10 minutes after startup, then runs every 24 hours. Three sweeps:
 
-1. **Inactive rooms** — deletes all rooms where `lastActiveAt` is older than 30 days along with every associated document in `journal`, `bucketlist`, `trivia`, `watchparty`, `chat`, `puzzle`, `milestones`, `drawing`, and `songs`. `DeleteRoom` (manual delete) uses the same list.
-2. **Faded songs** — deletes entries in `songs` with `status ∈ {unheard, dismissed}` and `createdAt` older than 7 days. Saved songs are untouched. Keeps the song-letter Inbox curated without requiring user action.
+1. **Inactive rooms** — deletes all rooms where `lastActiveAt` is older than 30 days along with every associated document in `journal`, `bucketlist`, `trivia`, `watchparty`, `chat`, `puzzle`, `milestones`, `drawing`, `songs`, `moods`, `messages`, and `films`. Also `os.RemoveAll`s the room's media directory under `MEDIA_ROOT/rooms/{code}/`. `DeleteRoom` (manual delete) does the same.
+2. **Faded songs** — deletes entries in `songs` with `status ∈ {unheard, dismissed}` and `createdAt` older than 7 days. Saved songs are untouched.
+3. **Faded film rolls** — deletes rolls where `developAt + 7d` has passed. Removes the on-disk roll directory before the Mongo doc.
 
 ---
 
 ## Database
 
-One MongoDB database, eleven collections:
+One MongoDB database, twelve collections:
 
 | Collection | Key fields | Notes |
 |---|---|---|
-| `rooms` | `code`, `members[].{userId,name,timezone}`, `theme`, `lastActiveAt`, `createdAt` | Max 2 members. Member timezone is upserted from the WS `tz` query param on connect |
-| `journal` | `roomId`, `userId`, `date`, `content`, `mood` | Upsert on (roomId, userId, date). Partner entry hidden until both have written |
+| `rooms` | `code`, `members[].{userId,name,timezone,location,lastSeenAt,hideLastSeen}`, `theme`, `lastActiveAt`, `createdAt` | Max 2 members. Timezone is upserted from the WS `tz` query param on connect; `location` is user-set display label (falls back to IANA city); `lastSeenAt` touched on WS disconnect + every ping; `hideLastSeen` opt-out hides the timestamp from the partner |
+| `journal` | `roomId`, `userId`, `date`, `content`, `mood`, `reactions[]`, `cheers[]` | Upsert on (roomId, userId, date). Partner entry hidden until both have written. After reveal, partner can leave one reaction (5 emoji set) and one ≤120-char cheer note |
 | `bucketlist` | `roomId`, `userId`, `text`, `done`, `doneAt`, `surprise`, `revealAt` | Surprise items hide text from partner until revealAt. `doneAt` feeds the timeline |
 | `trivia` | `roomId`, `userId`, `question`, `answer`, `attempts[]` | One attempt per answerer; answer revealed on wrong |
 | `watchparty` | `roomId`, `videoId`, `title`, `queue[].{videoId,title,addedBy}` | Current video + shared queue. Queue mutates via REST, `queue:changed` WS event tells partner to refetch |
@@ -113,6 +114,8 @@ One MongoDB database, eleven collections:
 | `drawing` | `roomId`, `strokes[].{userId,color,width,points,at}`, `updatedAt` | One doc per room. Strokes stream via WS, capped at 2000 / stroke (4000 points max) |
 | `songs` | `roomId`, `senderId`, `recipientId`, `provider`, `trackId`, `title`, `artist`, `thumb`, `message`, `status`, `heardAt`, `savedAt` | Ephemeral song-letters. `provider` ∈ spotify/youtube, `status` ∈ unheard/saved/dismissed. `recipientId` may be empty for solo-sent songs and gets backfilled by `JoinRoom` when the partner arrives. Unheard + dismissed fade after 7 days; saved persists until room cleanup |
 | `moods` | `roomId`, `userId`, `emoji`, `note`, `updatedAt` | Mood check-in. One doc per (room, user) — always-visible "today's vibe" shown on the Dashboard. Upserted on set, broadcast via `mood:set` |
+| `messages` | `roomId`, `senderId`, `senderName`, `recipientId`, `text`, `createdAt` | Async "leave a note." Hard-deleted on `POST /messages/:id/read` (ephemeral on read). Server broadcasts `message:new` on send and `message:seen` on read |
+| `films` | `roomId`, `period` (ISO week), `developAt`, `items[].{id,userId,kind,filename,mimeType,size}` | Weekly shared photo + video roll. One doc per (room, week). Items locked from partner until `developAt` (Monday 00:00 UTC). Files live on disk under `MEDIA_ROOT/rooms/{code}/{rollId}/`. Cleanup sweeps rolls 7 days after develop |
 
 Room codes are 6-character strings from the charset `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (ambiguous characters I, O, 0, 1 excluded). User IDs are 8-character strings from the same charset.
 
@@ -171,8 +174,9 @@ The `online` toast uses a `useRef` mirror of the online list to detect new arriv
 /bucket          → Bucket List
 /trivia          → Trivia
 /puzzle          → Puzzle
-/draw            → Shared canvas
+/draw            → Shared canvas with eraser
 /music           → Song letters (Inbox / Saved / Sent). Spotify + YouTube, ephemeral by default
+/film            → Weekly shared Film Roll (photos + short video, locked-until-develop, 7-day fade)
 /timeline        → Auto-assembled memory of milestones / bucket completions / shared journal days
 /guide           → Guide
 ```
@@ -206,9 +210,15 @@ deleting the room server-side.
 | `puzzle:move` | client → others | `{pieceId, currentX, currentY}` | Piece swap (also persisted) |
 | `puzzle:reset` | client → others | — | New puzzle created |
 | `nudge:send` | client → others | `{emoji}` | "Thinking of you" — partner gets toast + page pulse + vibration |
-| `mood:set` | server → all | `{emoji, note}` | Broadcast from `SetMood` handler after a mood upsert |
+| `mood:set` | server → all | `{emoji, note}` | Broadcast from `SetMood` after a mood upsert |
 | `touch:press` | client → others | — | Press-and-hold started (live only, no persistence) |
 | `touch:release` | client → others | — | Press-and-hold ended |
+| `message:new` | server → all | `{id}` | Broadcast from `CreateMessage` after async-note insert; recipient refetches |
+| `message:seen` | server → all | `{id, senderId, readAt}` | Broadcast from `ReadMessage` after the row is deleted; sender shows "seen ❤" toast |
+| `journal:reacted` | server → all | `{date, ownerId}` | Reaction toggled on the entry owner's behalf |
+| `journal:cheered` | server → all | `{date, ownerId}` | Cheer note attached / cleared |
+| `room:updated` | server → all | — | Member or room metadata changed (rename, location, theme); recipients refetch the room |
+| `watch:stop` | client → others | — | Sender ended the watch session — clears partner's player, queue stays |
 | `draw:stroke` | client → others | `{color, width, points}` | Completed stroke, points normalized 0..1 (also persisted) |
 | `draw:clear` | client → others | — | Wipe the canvas (also persisted) |
 | `ping` | client → server | — | Keepalive; not forwarded |
@@ -234,3 +244,4 @@ Environment variables (all in `server/.env`):
 | `LDRMONGO` / `MONGO_URI` | `mongodb://localhost:27017` | MongoDB connection string |
 | `MONGO_DB` | `ldr` | Database name (`test` locally) |
 | `PORT` | `8080` | HTTP listen port |
+| `MEDIA_ROOT` | `./media` | Directory for Film Roll uploads. Prod: `/var/lib/ldr/media` |

@@ -18,6 +18,7 @@ import Draw from './pages/Draw'
 import Timeline from './pages/Timeline'
 import Guide from './pages/Guide'
 import Music from './pages/Music'
+import FilmPage from './pages/Film'
 
 function RequireRoom({ children }) {
   const code = store.get('roomCode')
@@ -160,6 +161,27 @@ function AppRoutes() {
     return () => offs.forEach((off) => off())
   }, [ws, uid, toast])
 
+  // Async notes ("leave a message")
+  useEffect(() => {
+    if (!ws) return
+    const offs = [
+      // Inbound note → notify + tab badge (NotesCard refreshes its own list).
+      ws.on('message:new', (msg) => {
+        if (msg.userId === uid) return
+        const who = msg.name || 'Your person'
+        bumpBadge()
+        notify(`${who} left you a note`, 'Tap to read', { tag: 'message-new' })
+      }),
+      // Recipient just read a note we sent — closure for the sender.
+      ws.on('message:seen', (msg) => {
+        if (msg.userId === uid) return
+        const who = msg.name || 'They'
+        toast(`${who} read your note ❤`, 'success')
+      }),
+    ]
+    return () => offs.forEach((off) => off())
+  }, [ws, uid, toast])
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />
@@ -177,6 +199,7 @@ function AppRoutes() {
                 <Route path="/puzzle" element={<Puzzle ws={ws} online={online} />} />
                 <Route path="/draw" element={<Draw ws={ws} online={online} />} />
                 <Route path="/music" element={<Music ws={ws} online={online} />} />
+                <Route path="/film" element={<FilmPage ws={ws} online={online} />} />
                 <Route path="/timeline" element={<Timeline />} />
                 <Route path="/guide" element={<Guide />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />

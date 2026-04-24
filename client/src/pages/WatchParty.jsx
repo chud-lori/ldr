@@ -3,7 +3,7 @@ import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import {
-  Tv, ListMusic, MessageCircle, X, SkipForward, ArrowUp, AlertTriangle,
+  Tv, ListMusic, MessageCircle, X, SkipForward, ArrowUp, AlertTriangle, RotateCw,
 } from '../lib/icons'
 import InviteButton from '../components/InviteButton'
 
@@ -151,6 +151,13 @@ export default function WatchParty({ ws, online }) {
       // new display name from GetChatHistory's server-side override.
       ws.on('presence:list', () => refreshChat()),
       ws.on('room:updated', () => refreshChat()),
+      // Partner ended the watch session entirely.
+      ws.on('watch:stop', () => {
+        setCurrentVideoId(null)
+        setPendingVideoId(null)
+        try { playerInstanceRef.current?.destroy?.() } catch {}
+        playerInstanceRef.current = null
+      }),
     ]
     return () => offs.forEach((off) => off())
   }, [ws, refreshWatchParty, refreshChat])
@@ -166,6 +173,30 @@ export default function WatchParty({ ws, online }) {
     api.put(`/rooms/${code}/watchparty`, { videoId: vid, title: '' })
     ws?.send('watch:video', { videoId: vid })
     setVideoUrl('')
+  }
+
+  // Replace the currently-playing video. Same path as playNow — partner's
+  // existing watch:video switch banner is the consent layer.
+  function replaceNow() {
+    const vid = extractVideoId(videoUrl)
+    if (!vid) return
+    if (playerInstanceRef.current) {
+      try { playerInstanceRef.current.loadVideoById(vid) } catch {}
+    }
+    setCurrentVideoId(vid)
+    api.put(`/rooms/${code}/watchparty`, { videoId: vid, title: '' })
+    ws?.send('watch:video', { videoId: vid })
+    setVideoUrl('')
+  }
+
+  // End the watch session — clears the current video on both sides but
+  // preserves the queue so they can resume later.
+  function stopVideo() {
+    setCurrentVideoId(null)
+    try { playerInstanceRef.current?.destroy?.() } catch {}
+    playerInstanceRef.current = null
+    api.put(`/rooms/${code}/watchparty`, { videoId: '', title: '' })
+    ws?.send('watch:stop', {})
   }
 
   async function addToQueue() {
@@ -224,19 +255,45 @@ export default function WatchParty({ ws, online }) {
         <InviteButton ws={ws} online={online} feature="watch" selfId={uid} />
       </div>
       <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 space-y-2">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input
-            className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-slate-400"
+            className="flex-1 min-w-0 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-slate-400"
             placeholder="Paste YouTube URL or video ID"
             value={videoUrl}
             onChange={(e) => setVideoUrl(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && (currentVideoId ? addToQueue() : playNow())}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return
+              if (!videoUrl.trim()) return
+              if (currentVideoId) {
+                e.shiftKey ? addToQueue() : replaceNow()
+              } else {
+                playNow()
+              }
+            }}
             data-testid="video-url-input"
           />
           {currentVideoId ? (
-            <button onClick={addToQueue} data-testid="queue-add" className={`${t.btn} px-4 rounded-xl text-sm font-medium`}>
-              + Queue
-            </button>
+            <>
+              <button
+                onClick={replaceNow}
+                disabled={!videoUrl.trim()}
+                data-testid="play-replace"
+                title="Stop the current video and play this instead (Enter)"
+                className={`${t.btn} px-3 rounded-xl text-sm font-medium disabled:opacity-50 inline-flex items-center gap-1.5`}
+              >
+                <RotateCw className="h-3.5 w-3.5" strokeWidth={2.5} />
+                Replace
+              </button>
+              <button
+                onClick={addToQueue}
+                disabled={!videoUrl.trim()}
+                data-testid="queue-add"
+                title="Add to the queue (Shift+Enter)"
+                className={`bg-slate-100 text-slate-700 hover:bg-slate-200 px-3 rounded-xl text-sm font-medium disabled:opacity-50`}
+              >
+                + Queue
+              </button>
+            </>
           ) : (
             <button onClick={playNow} data-testid="play-now" className={`${t.btn} px-4 rounded-xl text-sm font-medium`}>
               Play
@@ -293,8 +350,19 @@ export default function WatchParty({ ws, online }) {
       )}
 
       {currentVideoId ? (
-        <div className="bg-black rounded-2xl overflow-hidden aspect-video shadow-sm">
-          <div ref={playerRef} className="w-full h-full" />
+        <div className="relative">
+          <div className="bg-black rounded-2xl overflow-hidden aspect-video shadow-sm">
+            <div ref={playerRef} className="w-full h-full" />
+          </div>
+          <button
+            onClick={stopVideo}
+            data-testid="stop-video"
+            title="End watch session (clears current video, keeps queue)"
+            className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full w-8 h-8 flex items-center justify-center backdrop-blur-sm"
+            aria-label="Stop video"
+          >
+            <X className="h-4 w-4" strokeWidth={2.5} />
+          </button>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 aspect-video flex items-center justify-center">

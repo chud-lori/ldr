@@ -124,6 +124,7 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 
 			switch {
 			case strings.HasPrefix(msg.Type, "watch:") || strings.HasPrefix(msg.Type, "puzzle:"):
+				// Includes watch:stop — partner clears player + queue stays.
 				hub.Broadcast(code, outData, client)
 				if msg.Type == "puzzle:move" {
 					go handlePuzzleMove(code, msg.Payload)
@@ -183,14 +184,29 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 				}
 
 			case msg.Type == "ping":
-				// keepalive — no broadcast needed
+				// keepalive — refresh lastSeenAt so the offline-display
+				// timestamp stays accurate during a long session.
+				go touchLastSeen(code, uid)
 			}
 		}
+
+		// Touch lastSeenAt before broadcasting presence so the partner sees
+		// the freshly-updated time alongside the "now offline" signal.
+		touchLastSeen(code, uid)
 
 		// Unregister blocks until fully removed, then broadcast updated list.
 		hub.Unregister(client)
 		hub.BroadcastAll(code, ws.MarshalMsg("presence:list", "", "", presenceList(hub, code)))
 	}
+}
+
+func touchLastSeen(code, uid string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	db.Col("rooms").UpdateOne(ctx,
+		bson.M{"code": code, "members.userId": uid},
+		bson.M{"$set": bson.M{"members.$.lastSeenAt": time.Now()}},
+	)
 }
 
 func handlePuzzleMove(roomID string, payload json.RawMessage) {

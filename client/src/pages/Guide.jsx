@@ -4,7 +4,7 @@ import { store } from '../lib/store'
 import {
   Home, BookOpen, Tv, ListChecks, HelpCircle, PuzzleIcon, Pencil,
   History, CalendarHeart, Clock, Heart, Settings, Trash2, Smartphone,
-  LogOut, Link2, ListMusic, ArrowLeft, Share2, Music2,
+  LogOut, Link2, ListMusic, ArrowLeft, Share2, Music2, Camera, Mail,
 } from '../lib/icons'
 
 function Section({ Icon, title, children }) {
@@ -86,14 +86,15 @@ export default function Guide() {
 
       <Section Icon={BookOpen} title="Journal">
         <p>Write a daily entry with a mood. Your partner's entry stays hidden until <strong>both of you have written</strong> for that day — so you don't influence each other.</p>
+        <p>After reveal, you can leave a single emoji reaction (❤️ 🤗 💪 😢 🔥) and an optional one-line cheer (≤120 chars) on your partner's entry. It shows up under their card so they see your response when they re-open the day.</p>
         <p>Use the date picker to browse past entries.</p>
       </Section>
 
       <Section Icon={Tv} title="Watch Party">
         <p>Paste any YouTube URL or video ID. Both screens stay in sync — play, pause, and seek are broadcast in real time.</p>
         <p>When one person joins late, their player automatically catches up to where the other person is.</p>
-        <p>If your partner loads a new video while you're watching, you'll get a prompt to switch or stay — no surprise interruptions.</p>
-        <p>Already watching something? The <strong>+ Queue</strong> button lines up the next video. Either of you can remove entries or tap <strong>Play next ▶</strong> — the queue syncs between you instantly.</p>
+        <p>While something's playing, the input has two buttons: <strong>Replace</strong> (clears the current video and plays the new one — your partner gets a switch banner) and <strong>+ Queue</strong> (lines it up for later). On desktop: Enter = Replace, Shift+Enter = Queue.</p>
+        <p>The little <strong>✕</strong> in the top-right of the player ends the watch session entirely; queue is preserved so you can come back to it.</p>
         <p>Chat is saved per room (not per video), so your conversation history stays.</p>
       </Section>
 
@@ -116,6 +117,18 @@ export default function Guide() {
       <Section Icon={Pencil} title="Draw">
         <p>A shared canvas. Pick a color and stroke width, draw with your mouse or finger, and each finished stroke appears on your partner's screen instantly.</p>
         <p>Strokes are saved per room, so you can come back later and keep adding. <strong>Clear canvas</strong> wipes everything for both of you.</p>
+      </Section>
+
+      <Section Icon={Camera} title="Film Roll">
+        <p>A weekly shared photo (and short video) album. Each week opens a new roll — both of you upload throughout the week, but neither sees the other's photos until <strong>Monday 00:00 UTC</strong>, when the roll "develops" and reveals everything together.</p>
+        <p>Photos auto-resize on your device before upload (so a 5 MB phone photo becomes ~500 KB). Videos must be ≤ 30 seconds and 50 MB.</p>
+        <p>After develop, the photos stay visible for <strong>7 days</strong>, then fade automatically. Tap the download icon on any item to save it to your device before that.</p>
+      </Section>
+
+      <Section Icon={Mail} title="Notes (leave-a-message)">
+        <p>An async "post-it for when you come back." Tap <strong>Leave them a note</strong> on the Dashboard, write up to 300 characters, and hit Send. They see it the next time they open the app.</p>
+        <p>When they tap <strong>Mark read</strong>, the note disappears from both sides and you get a small "they read your note ❤" toast — closure, not a thread.</p>
+        <p>Different from Watch Party chat: that's for live commentary while watching together; this is for things you want them to read in their own time.</p>
       </Section>
 
       <Section Icon={Music2} title="Song Letters">

@@ -15,4 +15,5 @@ export const FEATURE_META = {
   journal:  { to: '/journal',  cta: 'Write with me',   verb: 'write together',  label: 'Journal' },
   bucket:   { to: '/bucket',   cta: 'Plan with me',    verb: 'plan something',  label: 'Bucket list' },
   music:    { to: '/music',    cta: 'Listen with me',  verb: 'share a song',    label: 'Music' },
+  film:     { to: '/film',     cta: 'Add to our roll', verb: 'check the roll',  label: 'Film roll' },
 }

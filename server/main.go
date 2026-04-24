@@ -65,6 +65,8 @@ func main() {
 			r.Get("/rooms/{code}/journal", handlers.GetJournal)
 			r.Get("/rooms/{code}/journal/all", handlers.GetJournalAll)
 			r.Post("/rooms/{code}/journal", handlers.SaveJournal)
+			r.Post("/rooms/{code}/journal/{date}/{userId}/react", handlers.ReactJournal)
+			r.Post("/rooms/{code}/journal/{date}/{userId}/cheer", handlers.CheerJournal)
 
 			r.Get("/rooms/{code}/bucketlist", handlers.GetBucketList)
 			r.Post("/rooms/{code}/bucketlist", handlers.AddBucketItem)
@@ -95,6 +97,10 @@ func main() {
 			r.Get("/rooms/{code}/drawing", handlers.GetDrawing)
 			r.Delete("/rooms/{code}/drawing", handlers.ClearDrawing)
 
+			r.Get("/rooms/{code}/films", handlers.ListFilms)
+			r.Post("/rooms/{code}/films/upload", handlers.UploadFilmItem)
+			r.Get("/rooms/{code}/films/media/{rollId}/{filename}", handlers.ServeFilmItem)
+
 			r.Get("/rooms/{code}/songs", handlers.ListSongs)
 			r.Get("/rooms/{code}/songs/resolve", handlers.ResolveTrack)
 			r.Post("/rooms/{code}/songs", handlers.CreateSong)
@@ -103,6 +109,10 @@ func main() {
 
 			r.Get("/rooms/{code}/moods", handlers.GetMoods)
 			r.Put("/rooms/{code}/mood", handlers.SetMood)
+
+			r.Get("/rooms/{code}/messages", handlers.ListMessages)
+			r.Post("/rooms/{code}/messages", handlers.CreateMessage)
+			r.Post("/rooms/{code}/messages/{id}/read", handlers.ReadMessage)
 
 			r.Get("/rooms/{code}/timeline", handlers.GetTimeline)
 		})

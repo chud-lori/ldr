@@ -5,7 +5,7 @@ import { useTheme } from '../hooks/useTheme'
 import { api } from '../lib/api'
 import {
   Home, BookOpen, Tv, ListChecks, HelpCircle, PuzzleIcon, Pencil,
-  History, X, PenLine, Music2,
+  History, X, PenLine, Music2, Camera,
 } from '../lib/icons'
 
 const nav = [
@@ -17,15 +17,29 @@ const nav = [
   { to: '/puzzle',    label: 'Puzzle',      Icon: PuzzleIcon },
   { to: '/draw',      label: 'Draw',        Icon: Pencil },
   { to: '/music',     label: 'Music',       Icon: Music2 },
+  { to: '/film',      label: 'Film',        Icon: Camera },
   { to: '/timeline',  label: 'Timeline',    Icon: History },
 ]
 
 function UserSettings({ ws, onClose, t }) {
   const code = store.get('roomCode')
+  const uid = store.get('userId')
+  const roomData = store.get('roomData')
+  const me = roomData?.members?.find((m) => m.userId === uid)
   const [name, setName] = useState(store.get('userName') || '')
+  const [location, setLocation] = useState(me?.location || '')
+  const [hideLastSeen, setHideLastSeen] = useState(!!me?.hideLastSeen)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  // Compute the IANA city fallback so we can show it as a placeholder.
+  const ianaFallback = (() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      return tz?.split('/').pop()?.replace(/_/g, ' ') || ''
+    } catch { return '' }
+  })()
 
   async function save(e) {
     e.preventDefault()
@@ -33,13 +47,17 @@ function UserSettings({ ws, onClose, t }) {
     setSaving(true)
     setError('')
     try {
-      const updated = await api.patch(`/rooms/${code}/me`, { name: name.trim() })
+      const nameChanged = name.trim() !== (store.get('userName') || '')
+      const updated = await api.patch(`/rooms/${code}/me`, {
+        name: name.trim(),
+        location: location.trim(),
+        hideLastSeen,
+      })
       store.set('userName', name.trim())
       if (updated) store.set('roomData', updated)
-      // Re-open the WS so the hub client picks up the new name for
-      // presence + chat broadcasts. REST responses are already freshened
-      // server-side by memberNames().
-      ws?.reconnect?.()
+      // Re-open the WS only if the name actually changed — that's what
+      // the hub client struct caches. Location is REST-only so no need.
+      if (nameChanged) ws?.reconnect?.()
       setSaved(true)
       setTimeout(() => { setSaved(false); onClose() }, 800)
     } catch (err) {
@@ -72,6 +90,32 @@ function UserSettings({ ws, onClose, t }) {
               autoFocus
             />
           </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">
+              Your location
+            </label>
+            <input
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-slate-400 text-slate-800"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder={ianaFallback || 'e.g. Penang'}
+            />
+            <p className="text-[11px] text-slate-400 mt-1">Shown on the Dashboard. Leave empty to use {ianaFallback || 'the system timezone'}.</p>
+          </div>
+          <label className="flex items-start gap-2 text-sm text-slate-600 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={hideLastSeen}
+              onChange={(e) => setHideLastSeen(e.target.checked)}
+              className={`${t.check} mt-0.5`}
+            />
+            <span className="leading-tight">
+              Hide my "last here" time
+              <span className="block text-[11px] text-slate-400 mt-0.5">
+                Partner just sees you as offline, no timestamp.
+              </span>
+            </span>
+          </label>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button
             type="submit"

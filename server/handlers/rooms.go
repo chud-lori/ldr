@@ -29,6 +29,20 @@ func broadcastRoomUpdate(code, uid string) {
 	Hub.BroadcastAll(code, msg)
 }
 
+// applyMemberPrivacy strips opt-out fields from members other than the
+// viewer. Currently just lastSeenAt when hideLastSeen is set — the viewer
+// always sees their own state so they can manage the toggle.
+func applyMemberPrivacy(room *models.Room, viewerUID string) {
+	for i := range room.Members {
+		if room.Members[i].UserID == viewerUID {
+			continue
+		}
+		if room.Members[i].HideLastSeen {
+			room.Members[i].LastSeenAt = nil
+		}
+	}
+}
+
 const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 func genCode(n int) string {
@@ -97,6 +111,7 @@ func GetRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	applyMemberPrivacy(&room, userID(r))
 	respond(w, http.StatusOK, room)
 }
 
@@ -163,11 +178,29 @@ func UpdateMe(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r)
 
 	var body struct {
-		Name string `json:"name"`
+		Name         *string `json:"name,omitempty"`
+		Location     *string `json:"location,omitempty"`
+		HideLastSeen *bool   `json:"hideLastSeen,omitempty"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
-	if body.Name == "" {
-		http.Error(w, "name required", http.StatusBadRequest)
+
+	set := bson.M{}
+	if body.Name != nil {
+		n := strings.TrimSpace(*body.Name)
+		if n == "" {
+			http.Error(w, "name required", http.StatusBadRequest)
+			return
+		}
+		set["members.$.name"] = n
+	}
+	if body.Location != nil {
+		set["members.$.location"] = strings.TrimSpace(*body.Location)
+	}
+	if body.HideLastSeen != nil {
+		set["members.$.hideLastSeen"] = *body.HideLastSeen
+	}
+	if len(set) == 0 {
+		http.Error(w, "nothing to update", http.StatusBadRequest)
 		return
 	}
 
@@ -176,11 +209,12 @@ func UpdateMe(w http.ResponseWriter, r *http.Request) {
 
 	db.Col("rooms").UpdateOne(ctx,
 		bson.M{"code": code, "members.userId": uid},
-		bson.M{"$set": bson.M{"members.$.name": body.Name}},
+		bson.M{"$set": set},
 	)
 
 	var updated models.Room
 	db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&updated)
+	applyMemberPrivacy(&updated, uid)
 	broadcastRoomUpdate(code, uid)
 	respond(w, http.StatusOK, updated)
 }
@@ -232,6 +266,7 @@ func UpdateRoom(w http.ResponseWriter, r *http.Request) {
 
 	var updated models.Room
 	db.Col("rooms").FindOne(ctx, bson.M{"code": code}).Decode(&updated)
+	applyMemberPrivacy(&updated, uid)
 	broadcastRoomUpdate(code, uid)
 	respond(w, http.StatusOK, updated)
 }
@@ -266,9 +301,10 @@ func DeleteRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete room and all associated data
-	for _, col := range []string{"rooms", "journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle", "milestones", "drawing", "songs", "moods"} {
+	for _, col := range []string{"rooms", "journal", "bucketlist", "trivia", "watchparty", "chat", "puzzle", "milestones", "drawing", "songs", "moods", "messages", "films"} {
 		db.Col(col).DeleteMany(ctx, bson.M{"roomId": code})
 	}
+	PurgeRoomMedia(code)
 	db.Col("rooms").DeleteOne(ctx, bson.M{"code": code})
 
 	w.WriteHeader(http.StatusNoContent)

@@ -7,8 +7,12 @@ import { BookOpen } from '../lib/icons'
 import InviteButton from '../components/InviteButton'
 
 const MOODS = ['😊', '😔', '😍', '😴', '🥰', '😤', '😢', '🤩', '😌', '🥺']
+const REACTIONS = ['❤️', '🤗', '💪', '😢', '🔥']
 
-function EntryCard({ entry, mine, t }) {
+function EntryCard({ entry, mine, uid, partnerName, onReact, onCheer, t }) {
+  const [cheerDraft, setCheerDraft] = useState('')
+  const [editingCheer, setEditingCheer] = useState(false)
+
   if (!entry) {
     return (
       <div className="flex-1 border-2 border-dashed border-slate-200 rounded-xl p-4 flex items-center justify-center min-h-32">
@@ -18,13 +22,101 @@ function EntryCard({ entry, mine, t }) {
       </div>
     )
   }
+
+  const reactions = entry.reactions || []
+  const cheers = entry.cheers || []
+  // In a 2-person room: any reaction/cheer on a card came from the OTHER
+  // person. On my own card it's the partner's response; on the partner's
+  // card it's mine (which I can edit).
+  const myReaction = !mine ? reactions.find((r) => r.userId === uid)?.emoji : null
+  const myCheer = !mine ? cheers.find((c) => c.userId === uid)?.text : null
+  const partnerReaction = mine ? reactions[0]?.emoji : null
+  const partnerCheer = mine ? cheers[0]?.text : null
+
+  function startEditCheer() {
+    setCheerDraft(myCheer || '')
+    setEditingCheer(true)
+  }
+
+  async function submitCheer() {
+    setEditingCheer(false)
+    await onCheer?.(entry.userId, cheerDraft.trim())
+  }
+
   return (
-    <div className={`flex-1 rounded-xl p-4 min-h-32 ${mine ? t.myEntry : 'bg-slate-50'}`}>
-      <div className="flex items-center justify-between mb-2">
+    <div className={`flex-1 rounded-xl p-4 min-h-32 ${mine ? t.myEntry : 'bg-slate-50'} space-y-2`}>
+      <div className="flex items-center justify-between mb-1">
         <span className="text-sm font-semibold text-slate-600">{entry.name}</span>
         <span className="text-xl">{entry.mood}</span>
       </div>
       <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{entry.content}</p>
+
+      {mine && (partnerReaction || partnerCheer) && (
+        <div className="pt-2 mt-2 border-t border-white/50 space-y-1">
+          {partnerReaction && (
+            <div className="text-xs text-slate-600">
+              <span className="text-base mr-1">{partnerReaction}</span>
+              <span className="text-slate-500">— {partnerName || 'them'}</span>
+            </div>
+          )}
+          {partnerCheer && (
+            <p className="text-xs text-slate-600 italic leading-relaxed">"{partnerCheer}"</p>
+          )}
+        </div>
+      )}
+
+      {!mine && (
+        <div className="pt-2 mt-2 border-t border-slate-200 space-y-2">
+          <div className="flex gap-1">
+            {REACTIONS.map((e) => (
+              <button
+                key={e}
+                onClick={() => onReact?.(entry.userId, e === myReaction ? '' : e)}
+                data-testid={`react-${e}`}
+                title={e === myReaction ? 'Tap to remove' : 'React'}
+                className={`text-lg p-1 rounded-lg transition-transform hover:scale-110 ${
+                  e === myReaction ? 'bg-white shadow-sm scale-110' : 'opacity-50 hover:opacity-100'
+                }`}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+          {!editingCheer && myCheer && (
+            <button
+              onClick={startEditCheer}
+              className="text-xs text-slate-500 italic leading-relaxed text-left hover:text-slate-700"
+            >
+              "{myCheer}" <span className="not-italic opacity-60 ml-1">edit</span>
+            </button>
+          )}
+          {!editingCheer && !myCheer && (
+            <button
+              onClick={startEditCheer}
+              data-testid="open-cheer"
+              className="text-xs text-slate-400 hover:text-slate-600"
+            >
+              + cheer them up
+            </button>
+          )}
+          {editingCheer && (
+            <div className="flex gap-1.5">
+              <input
+                value={cheerDraft}
+                onChange={(e) => setCheerDraft(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submitCheer()}
+                onBlur={submitCheer}
+                maxLength={120}
+                placeholder="One short line…"
+                autoFocus
+                data-testid="cheer-input"
+                className="flex-1 min-w-0 text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-slate-400 bg-white"
+              />
+              <span className="text-[10px] text-slate-400 self-center tabular-nums">{120 - cheerDraft.length}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -70,13 +162,34 @@ export default function Journal({ ws, online }) {
   // streak (keeps the calendar heat-map accurate without flicker).
   useEffect(() => {
     if (!ws) return
-    return ws.on('journal:saved', (msg) => {
-      if (msg.userId === uid) return
-      const savedDate = msg.payload?.date
-      if (savedDate === date) load(date)
-      loadAll()
-    })
+    const refresh = (msg) => {
+      const d = msg?.payload?.date
+      if (d === date) load(date)
+    }
+    const offs = [
+      ws.on('journal:saved', (msg) => {
+        if (msg.userId === uid) return
+        const savedDate = msg.payload?.date
+        if (savedDate === date) load(date)
+        loadAll()
+      }),
+      // Reaction / cheer events fire for both directions — refresh either
+      // way so my own pick reflects in case of optimistic-state drift.
+      ws.on('journal:reacted', refresh),
+      ws.on('journal:cheered', refresh),
+    ]
+    return () => offs.forEach((o) => o())
   }, [ws, uid, date])
+
+  async function react(ownerUserId, emoji) {
+    await api.post(`/rooms/${code}/journal/${date}/${ownerUserId}/react`, { emoji })
+    load(date)
+  }
+
+  async function cheer(ownerUserId, text) {
+    await api.post(`/rooms/${code}/journal/${date}/${ownerUserId}/cheer`, { text })
+    load(date)
+  }
 
   async function save() {
     if (!content.trim()) return
@@ -136,8 +249,22 @@ export default function Journal({ ws, online }) {
         )}
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <EntryCard entry={myEntry} mine t={t} />
-          <EntryCard entry={partnerEntry} mine={false} t={t} />
+          <EntryCard
+            entry={myEntry}
+            mine
+            uid={uid}
+            partnerName={partnerEntry?.name}
+            t={t}
+          />
+          <EntryCard
+            entry={partnerEntry}
+            mine={false}
+            uid={uid}
+            partnerName={partnerEntry?.name}
+            onReact={react}
+            onCheer={cheer}
+            t={t}
+          />
         </div>
 
         {!isToday && !myEntry && !partnerEntry && (
