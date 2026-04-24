@@ -24,8 +24,11 @@ type Member struct {
 	// Location is the user-set display label shown next to their time on
 	// the Dashboard. Empty → client falls back to the IANA-derived city.
 	Location string `bson:"location,omitempty" json:"location,omitempty"`
-	// LastSeenAt is touched on WS disconnect and on every ping. Powers the
-	// "last here 2h ago" display when the partner is offline.
+	// LastSeenAt is touched on WS disconnect (not on ping). Powers both
+	// the "last here 2h ago" partner-offline label and the "Since you
+	// were away" activity feed cutoff. Anchoring to disconnect-only means
+	// the value represents the *end of the previous session* throughout
+	// the current one — exactly what the activity query needs.
 	LastSeenAt *time.Time `bson:"lastSeenAt,omitempty" json:"lastSeenAt,omitempty"`
 	// HideLastSeen lets a member opt out — when true, their LastSeenAt is
 	// stripped before responses go to the partner.

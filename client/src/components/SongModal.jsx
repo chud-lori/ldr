@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Heart } from '../lib/icons'
+import { api } from '../lib/api'
+import { store } from '../lib/store'
 import SongCard from './SongCard'
 import SongPlayer from './SongPlayer'
 
@@ -11,6 +13,15 @@ import SongPlayer from './SongPlayer'
 export default function SongModal({ song, mode = 'fresh', partnerName, onClose, onDecision }) {
   const [ended, setEnded] = useState(false)
   const [decided, setDecided] = useState(false)
+
+  // Tell the sender we opened it — fires song:heard immediately so they
+  // see "heard" status without waiting for the full-listen + decision.
+  // Server is idempotent: replays of already-heard songs are no-ops.
+  useEffect(() => {
+    if (mode !== 'fresh' || !song?.id) return
+    const code = store.get('roomCode')
+    api.post(`/rooms/${code}/songs/${song.id}/open`, {}).catch(() => {})
+  }, [song?.id, mode])
 
   function decide(status) {
     if (decided) return

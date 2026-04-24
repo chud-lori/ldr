@@ -61,8 +61,8 @@ export default function Music({ ws, online = [] }) {
       load() // snap back to server truth
       return
     }
-    // Let the sender know: heard always, saved only when kept.
-    ws?.send('song:heard', { id: song.id })
+    // song:heard already fired server-side when the modal opened.
+    // Just notify on save so the sender gets the "kept ❤" toast.
     if (newStatus === 'saved') ws?.send('song:saved', { id: song.id })
 
     if (newStatus === 'dismissed') {

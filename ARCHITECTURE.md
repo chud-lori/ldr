@@ -218,6 +218,7 @@ deleting the room server-side.
 | `journal:reacted` | server → all | `{date, ownerId}` | Reaction toggled on the entry owner's behalf |
 | `journal:cheered` | server → all | `{date, ownerId}` | Cheer note attached / cleared |
 | `room:updated` | server → all | — | Member or room metadata changed (rename, location, theme); recipients refetch the room |
+| `GET /rooms/:code/activity` (REST, not WS) | — | `[{kind, count}]` | Powers the "Since you were away" Dashboard card. Counts new content created with `createdAt > caller.lastSeenAt` per category (journal, bucket, trivia, songs in/out, journal reactions). `lastSeenAt` is touched only on WS disconnect (not on ping) so the cutoff = end of previous session for the duration of the current one |
 | `watch:stop` | client → others | — | Sender ended the watch session — clears partner's player, queue stays |
 | `draw:stroke` | client → others | `{color, width, points}` | Completed stroke, points normalized 0..1 (also persisted) |
 | `draw:clear` | client → others | — | Wipe the canvas (also persisted) |

@@ -130,8 +130,11 @@ export default function SongCard({ song, variant = 'inbox', partnerName, onClick
 }
 
 function statusLabel(song) {
-  if (song.status === 'saved') return 'kept ❤'
-  if (song.status === 'dismissed') return 'heard'
-  if (song.heardAt) return 'heard'
-  return 'waiting…'
+  if (song.status === 'saved') {
+    return song.savedAt ? `kept ${timeAgo(song.savedAt)} ❤` : 'kept ❤'
+  }
+  if (song.heardAt) {
+    return `heard ${timeAgo(song.heardAt)}`
+  }
+  return `sent ${timeAgo(song.createdAt)} · waiting`
 }

@@ -184,9 +184,9 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 				}
 
 			case msg.Type == "ping":
-				// keepalive — refresh lastSeenAt so the offline-display
-				// timestamp stays accurate during a long session.
-				go touchLastSeen(code, uid)
+				// keepalive — no DB write. lastSeenAt is touched only on
+				// disconnect so the value stays anchored to "previous
+				// session ended at" — needed by the activity feed cutoff.
 			}
 		}
 

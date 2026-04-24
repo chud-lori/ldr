@@ -105,6 +105,7 @@ func main() {
 			r.Get("/rooms/{code}/songs/resolve", handlers.ResolveTrack)
 			r.Post("/rooms/{code}/songs", handlers.CreateSong)
 			r.Patch("/rooms/{code}/songs/{id}", handlers.UpdateSong)
+			r.Post("/rooms/{code}/songs/{id}/open", handlers.OpenSong)
 			r.Delete("/rooms/{code}/songs/{id}", handlers.DeleteSong)
 
 			r.Get("/rooms/{code}/moods", handlers.GetMoods)
@@ -113,6 +114,8 @@ func main() {
 			r.Get("/rooms/{code}/messages", handlers.ListMessages)
 			r.Post("/rooms/{code}/messages", handlers.CreateMessage)
 			r.Post("/rooms/{code}/messages/{id}/read", handlers.ReadMessage)
+
+			r.Get("/rooms/{code}/activity", handlers.GetActivity)
 
 			r.Get("/rooms/{code}/timeline", handlers.GetTimeline)
 		})

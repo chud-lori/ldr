@@ -65,6 +65,7 @@ import {
   Camera,
   Download,
   Film,
+  ChevronRight,
 } from 'lucide-react'
 
 // Small helper — passes through className, defaults size/strokeWidth.
@@ -131,6 +132,7 @@ export {
   Camera,
   Download,
   Film,
+  ChevronRight,
 }
 
 // Feature → nav icon. Single source of truth for nav + dashboard grid.

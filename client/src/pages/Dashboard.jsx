@@ -8,6 +8,7 @@ import {
   Flame, BookOpen, BookMarked, Tv, ListChecks, HelpCircle, PuzzleIcon,
   Pencil, History, AlertTriangle, Sprout, Sparkles, Zap, Check, Copy,
   Cake, Plane, Pin, Lock, Music2, Smile, HandHeart, Mail, Send, Camera,
+  ChevronRight,
 } from '../lib/icons'
 import { useToast } from '../components/Toast'
 import { maybeRequestPermission } from '../lib/notify'
@@ -262,6 +263,65 @@ function shortAgo(iso) {
   const h = Math.floor(m / 60)
   if (h < 24) return `${h}h ago`
   return `${Math.floor(h / 24)}d ago`
+}
+
+// Renders only when the server has something to show — derived from
+// counts of new content created since this user's lastSeenAt (which
+// represents the end of their previous session, since we no longer touch
+// it on ping).
+function ActivityCard({ roomData, t }) {
+  const code = store.get('roomCode')
+  const uid = store.get('userId')
+  const nav = useNavigate()
+  const partner = (roomData?.members || []).find((m) => m.userId !== uid)
+  const partnerName = partner?.name || 'Partner'
+
+  const [items, setItems] = useState([])
+
+  useEffect(() => {
+    api.get(`/rooms/${code}/activity`)
+      .then((d) => setItems(Array.isArray(d) ? d : []))
+      .catch(() => {})
+  }, [code])
+
+  if (items.length === 0) return null
+
+  const META = {
+    'journal-new':     { Icon: BookOpen,    to: '/journal', label: (n) => `${partnerName} wrote ${n} journal ${n > 1 ? 'entries' : 'entry'}` },
+    'journal-reacted': { Icon: Heart,       to: '/journal', label: (n) => `${partnerName} reacted on ${n} of your entries` },
+    'bucket-new':      { Icon: ListChecks,  to: '/bucket',  label: (n) => `${partnerName} added ${n} bucket-list item${n > 1 ? 's' : ''}` },
+    'trivia-new':      { Icon: HelpCircle,  to: '/trivia',  label: (n) => `${partnerName} asked ${n} new trivia question${n > 1 ? 's' : ''}` },
+    'trivia-answered': { Icon: HelpCircle,  to: '/trivia',  label: (n) => `${partnerName} answered ${n} of your trivia question${n > 1 ? 's' : ''}` },
+    'song-received':   { Icon: Music2,      to: '/music',   label: (n) => `${partnerName} sent you ${n} song${n > 1 ? 's' : ''}` },
+    'song-feedback':   { Icon: Music2,      to: '/music',   label: (n) => `${partnerName} reacted to ${n} of your song${n > 1 ? 's' : ''}` },
+  }
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+        Since you were away
+      </p>
+      <div className="space-y-1.5">
+        {items.map((it) => {
+          const meta = META[it.kind]
+          if (!meta) return null
+          const Icon = meta.Icon
+          return (
+            <button
+              key={it.kind}
+              onClick={() => nav(meta.to)}
+              data-testid={`activity-${it.kind}`}
+              className={`w-full flex items-center gap-3 rounded-xl px-3 py-2 ${t.codeBg} hover:brightness-95 text-left transition-all`}
+            >
+              <Icon className={`h-4 w-4 ${t.accent} shrink-0`} strokeWidth={2} aria-hidden="true" />
+              <span className="flex-1 text-sm text-slate-700 leading-tight">{meta.label(it.count)}</span>
+              <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" strokeWidth={2} aria-hidden="true" />
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function NotesCard({ ws, roomData, t }) {
@@ -1090,6 +1150,8 @@ export default function Dashboard({ ws, online = [] }) {
       </div>
 
       <TimezoneStrip ws={ws} roomData={roomData} online={online} t={t} />
+
+      <ActivityCard roomData={roomData} t={t} />
 
       <NotesCard ws={ws} roomData={roomData} t={t} />
 

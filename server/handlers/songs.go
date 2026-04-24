@@ -218,6 +218,10 @@ func CreateSong(w http.ResponseWriter, r *http.Request) {
 
 // UpdateSong is recipient-only. The sender cannot flip status from their
 // side; that would let a sender silently mark their own song as heard.
+//
+// heardAt is owned by OpenSong (set once on first modal open). UpdateSong
+// only touches status + savedAt so the displayed "heard X ago" timestamp
+// stays anchored to the first interaction, not the eventual decision.
 func UpdateSong(w http.ResponseWriter, r *http.Request) {
 	code := strings.ToUpper(chi.URLParam(r, "code"))
 	uid := userID(r)
@@ -241,17 +245,13 @@ func UpdateSong(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	now := time.Now()
 	set := bson.M{"status": body.Status}
-	if body.Status == "heard" || body.Status == "saved" || body.Status == "dismissed" {
-		set["heardAt"] = now
-	}
 	if body.Status == "saved" {
-		set["savedAt"] = now
+		set["savedAt"] = time.Now()
 	}
 	update := bson.M{"$set": set}
 	if body.Status == "unheard" {
-		update["$unset"] = bson.M{"savedAt": "", "heardAt": ""}
+		update["$unset"] = bson.M{"savedAt": ""}
 	}
 
 	filter := bson.M{"_id": id, "roomId": code, "recipientId": uid}
@@ -264,6 +264,48 @@ func UpdateSong(w http.ResponseWriter, r *http.Request) {
 	var updated models.Song
 	db.Col("songs").FindOne(ctx, bson.M{"_id": id}).Decode(&updated)
 	respond(w, http.StatusOK, updated)
+}
+
+// OpenSong sets heardAt the first time the recipient opens the song
+// modal — gives the sender immediate "they heard it" feedback rather than
+// having to wait for the keep/let-go decision. Idempotent: subsequent
+// opens (e.g. replaying a saved song) don't move the timestamp.
+func OpenSong(w http.ResponseWriter, r *http.Request) {
+	code := strings.ToUpper(chi.URLParam(r, "code"))
+	uid := userID(r)
+	id, err := bson.ObjectIDFromHex(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	res, err := db.Col("songs").UpdateOne(ctx,
+		bson.M{
+			"_id":         id,
+			"roomId":      code,
+			"recipientId": uid,
+			"heardAt":     bson.M{"$exists": false},
+		},
+		bson.M{"$set": bson.M{"heardAt": now}},
+	)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+
+	// Only fire the broadcast when this open actually flipped the field.
+	// Replays of already-heard songs stay silent.
+	if res.MatchedCount > 0 && Hub != nil {
+		members := memberNames(ctx, code)
+		msg := ws.MarshalMsg("song:heard", uid, members[uid], map[string]string{"id": id.Hex()})
+		Hub.BroadcastAll(code, msg)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // DeleteSong lets either the sender (changed their mind) or the recipient

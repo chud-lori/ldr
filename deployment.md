@@ -16,6 +16,7 @@
 4. [GitHub repo + deploy key](#4-github-repo--deploy-key)
 5. [Clone and first build](#5-clone-and-first-build)
 6. [Environment file](#6-environment-file)
+6a. [Film Roll media directory](#6a-film-roll-media-directory)
 7. [Systemd service](#7-systemd-service)
 8. [nginx config](#8-nginx-config)
 9. [Cloudflare SSL setup](#9-cloudflare-ssl-setup)
@@ -235,11 +236,37 @@ nano ~/ldr/.env
 MONGO_URI=mongodb+srv://user:password@cluster0.xxxxx.mongodb.net/ldr?retryWrites=true&w=majority
 
 PORT=8080
+
+# On-disk root for Film Roll media uploads (see §6a below for setup).
+MEDIA_ROOT=/var/lib/ldr/media
 ```
 
 This file stays on the server only — never commit it.
 
 > The server reads `MONGO_URI` (or `LDRMONGO` if you prefer that name — both work).
+
+### 6a. Film Roll media directory
+
+The Film Roll feature stores user-uploaded photos and short videos on the VM filesystem (no cloud storage). One-time host setup:
+
+```bash
+sudo mkdir -p /var/lib/ldr/media
+sudo chown ubuntu:ubuntu /var/lib/ldr/media
+sudo chmod 750 /var/lib/ldr/media
+```
+
+Why `/var/lib/ldr/media`:
+- FHS-blessed location for app state (same place Postgres, Docker, etc. put data).
+- Survives `git clone` / `rm -rf ~/ldr` redeploys.
+- Owned by the same `ubuntu` user the systemd unit runs as, so the Go process can read/write without sudo.
+
+**Sizing**: at typical use (≤20 couples × ~10 photos+video clips/week, 14-day retention) you're using ≲ 3 GB. The free disk on a 40 GB VM is plenty. Caps enforced server-side: 5 MB per photo, 50 MB and 30 s per video. The cleanup worker prunes faded rolls and `os.RemoveAll`s the on-disk directory.
+
+**Backups**: not needed — media is intentionally ephemeral (7 days post-develop). Loss = at most 14 days of photos, which matches their natural lifetime. Permanent room data is in MongoDB (Atlas, backed up there).
+
+**No nginx changes** — files are served via the Go binary at `/api/rooms/:code/films/media/...` so the existing `/api/` proxy block already covers it. Auth is enforced via the same `RequireMember` middleware as every other endpoint.
+
+**Migrating to cloud storage later** (R2 / S3 / B2): see plan.md notes — ~50 lines of code change, no schema migration. Don't bother until you outgrow ~500 couples.
 
 ---
 
