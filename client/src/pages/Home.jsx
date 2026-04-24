@@ -24,13 +24,16 @@ export default function Home() {
   //   3. Otherwise → show the create/join form
   useEffect(() => {
     const params = new URLSearchParams(location.search)
-    const rc = params.get('roomCode')
-    const uid = params.get('userId')
+    // Both codes use the same uppercase-only charset. Some chat clients
+    // (Telegram, etc) display URLs lowercased even though the link itself
+    // preserves case — uppercasing here makes copy-pasted links forgiving.
+    const rc = (params.get('roomCode') || '').toUpperCase()
+    const uid = (params.get('userId') || '').toUpperCase()
 
     if (rc && uid) {
-      store.set('roomCode', rc.toUpperCase())
+      store.set('roomCode', rc)
       store.set('userId', uid)
-      api.get(`/rooms/${rc.toUpperCase()}`).then((data) => {
+      api.get(`/rooms/${rc}`).then((data) => {
         const member = data?.members?.find((m) => m.userId === uid)
         if (member) {
           store.set('userName', member.name)
@@ -91,7 +94,16 @@ export default function Home() {
       toast(isRejoin ? `Welcome back! You're in room ${data.room.code} 👩‍❤️‍👨` : `You joined room ${data.room.code}! 👩‍❤️‍👨`, 'success')
       nav('/dashboard')
     } catch (err) {
-      setError(err.message)
+      // "Room is full" is the most common confusing error: it fires when
+      // an existing member tries to re-join a different browser without
+      // their personal link. Surface the recovery path instead of the
+      // raw 403 text.
+      const m = (err?.message || '').toLowerCase()
+      if (m.includes('full')) {
+        setError("This room already has two people. If one of them is you, open the app on your other device and tap the personal link there — your account follows the link, not the name.")
+      } else {
+        setError(err.message)
+      }
     } finally {
       setLoading(false)
     }

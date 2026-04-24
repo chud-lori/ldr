@@ -500,10 +500,25 @@ function NotesCard({ ws, roomData, t }) {
             data-testid="compose-note"
             className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-slate-400 resize-none text-slate-700"
           />
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 flex-wrap">
             <label
               className="cursor-pointer text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-50"
-              title="Attach a picture"
+              title="Take a photo"
+            >
+              <Camera className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={pickImage}
+                disabled={sending}
+                className="hidden"
+                data-testid="note-camera-input"
+              />
+            </label>
+            <label
+              className="cursor-pointer text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-50"
+              title="Choose a picture"
             >
               <Paperclip className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
               <input
@@ -515,7 +530,7 @@ function NotesCard({ ws, roomData, t }) {
                 data-testid="note-image-input"
               />
             </label>
-            <span className="text-[10px] text-slate-400 tabular-nums">{300 - text.length}</span>
+            <span className="text-[10px] text-slate-400 tabular-nums ml-1">{300 - text.length}</span>
             <div className="flex-1" />
             <button
               onClick={resetCompose}

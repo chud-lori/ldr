@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
-import { Camera, Lock, Download, AlertTriangle } from '../lib/icons'
+import { Camera, Lock, Download, AlertTriangle, Paperclip } from '../lib/icons'
 import { compressPhoto } from '../lib/media'
 import InviteButton from '../components/InviteButton'
 
@@ -91,22 +91,43 @@ export default function FilmPage({ ws, online }) {
       </div>
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-2">
-        <label
-          className={`block w-full text-center cursor-pointer ${t.btn} rounded-xl py-3 text-sm font-semibold transition-opacity ${
-            uploading ? 'opacity-50 cursor-wait' : ''
-          }`}
-          data-testid="film-upload-label"
-        >
-          {uploading ? 'Uploading…' : "+ Add to this week's roll"}
-          <input
-            type="file"
-            accept="image/*,video/*"
-            onChange={handleFile}
-            disabled={uploading}
-            className="hidden"
-            data-testid="film-upload-input"
-          />
-        </label>
+        {uploading ? (
+          <div className={`w-full text-center ${t.btn} rounded-xl py-3 text-sm font-semibold opacity-50`}>
+            Uploading…
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <label
+              className={`flex-1 flex items-center justify-center gap-1.5 cursor-pointer ${t.btn} rounded-xl py-3 text-sm font-semibold`}
+              data-testid="film-capture-label"
+            >
+              <Camera className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+              Take
+              <input
+                type="file"
+                accept="image/*,video/*"
+                capture="environment"
+                onChange={handleFile}
+                className="hidden"
+                data-testid="film-capture-input"
+              />
+            </label>
+            <label
+              className="flex-1 flex items-center justify-center gap-1.5 cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl py-3 text-sm font-semibold"
+              data-testid="film-upload-label"
+            >
+              <Paperclip className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+              Choose
+              <input
+                type="file"
+                accept="image/*,video/*"
+                onChange={handleFile}
+                className="hidden"
+                data-testid="film-upload-input"
+              />
+            </label>
+          </div>
+        )}
         {error && (
           <div className="text-xs text-red-500 inline-flex items-start gap-1.5">
             <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" strokeWidth={2} />
