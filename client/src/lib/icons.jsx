@@ -66,6 +66,8 @@ import {
   Download,
   Film,
   ChevronRight,
+  Paperclip,
+  Image as ImageIcon,
 } from 'lucide-react'
 
 // Small helper — passes through className, defaults size/strokeWidth.
@@ -133,6 +135,8 @@ export {
   Download,
   Film,
   ChevronRight,
+  Paperclip,
+  ImageIcon,
 }
 
 // Feature → nav icon. Single source of truth for nav + dashboard grid.

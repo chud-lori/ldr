@@ -8,10 +8,11 @@ import {
   Flame, BookOpen, BookMarked, Tv, ListChecks, HelpCircle, PuzzleIcon,
   Pencil, History, AlertTriangle, Sprout, Sparkles, Zap, Check, Copy,
   Cake, Plane, Pin, Lock, Music2, Smile, HandHeart, Mail, Send, Camera,
-  ChevronRight,
+  ChevronRight, Paperclip,
 } from '../lib/icons'
 import { useToast } from '../components/Toast'
 import { maybeRequestPermission } from '../lib/notify'
+import { compressPhoto } from '../lib/media'
 
 function calcStreak(allDates) {
   const bothDays = new Set(
@@ -334,6 +335,8 @@ function NotesCard({ ws, roomData, t }) {
   const [unread, setUnread] = useState([])
   const [composing, setComposing] = useState(false)
   const [text, setText] = useState('')
+  const [image, setImage] = useState(null)         // compressed File ready to upload
+  const [imagePreview, setImagePreview] = useState(null)
   const [sending, setSending] = useState(false)
 
   const refresh = useCallback(() => {
@@ -352,8 +355,12 @@ function NotesCard({ ws, roomData, t }) {
     })
   }, [ws, uid, refresh])
 
+  // Free preview blob URL when component unmounts or preview changes.
+  useEffect(() => {
+    return () => { if (imagePreview) URL.revokeObjectURL(imagePreview) }
+  }, [imagePreview])
+
   async function markRead(id) {
-    // Optimistic remove so the card collapses instantly.
     setUnread((prev) => prev.filter((m) => m.id !== id))
     try {
       await api.post(`/rooms/${code}/messages/${id}/read`, {})
@@ -362,14 +369,48 @@ function NotesCard({ ws, roomData, t }) {
     }
   }
 
+  async function pickImage(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !file.type.startsWith('image/')) return
+    try {
+      const compressed = await compressPhoto(file)
+      setImage(compressed)
+      if (imagePreview) URL.revokeObjectURL(imagePreview)
+      setImagePreview(URL.createObjectURL(compressed))
+    } catch {
+      toast('Could not read that image', 'error')
+    }
+  }
+
+  function clearImage() {
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setImage(null)
+    setImagePreview(null)
+  }
+
+  function resetCompose() {
+    setText('')
+    clearImage()
+    setComposing(false)
+  }
+
   async function send() {
-    const t = text.trim()
-    if (!t || sending) return
+    const trimmed = text.trim()
+    if ((!trimmed && !image) || sending) return
     setSending(true)
     try {
-      await api.post(`/rooms/${code}/messages`, { name, text: t })
-      setText('')
-      setComposing(false)
+      const fd = new FormData()
+      fd.append('name', name)
+      fd.append('text', trimmed)
+      if (image) fd.append('image', image)
+      const res = await fetch(`/api/rooms/${code}/messages`, {
+        method: 'POST',
+        headers: { 'X-User-ID': uid },
+        body: fd,
+      })
+      if (!res.ok) throw new Error(await res.text())
+      resetCompose()
       toast(`Note sent to ${partner?.name || 'them'} 💗`, 'success')
     } catch (err) {
       toast(err?.message || 'Failed to send', 'error')
@@ -398,7 +439,17 @@ function NotesCard({ ws, roomData, t }) {
                 <span className="text-xs font-semibold text-slate-700">{m.senderName}</span>
                 <span className="text-[10px] text-slate-400">{shortAgo(m.createdAt)}</span>
               </div>
-              <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{m.text}</p>
+              {m.imageFilename && (
+                <img
+                  src={`/api/rooms/${code}/messages/${m.id}/image`}
+                  alt=""
+                  className="rounded-xl max-h-72 w-full object-cover bg-slate-100"
+                  loading="lazy"
+                />
+              )}
+              {m.text && (
+                <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{m.text}</p>
+              )}
               <button
                 onClick={() => markRead(m.id)}
                 data-testid={`note-read-${m.id}`}
@@ -423,33 +474,63 @@ function NotesCard({ ws, roomData, t }) {
 
       {composing && (
         <div className="space-y-2">
+          {imagePreview && (
+            <div className="relative inline-block">
+              <img
+                src={imagePreview}
+                alt=""
+                className="rounded-xl max-h-40 object-cover border border-slate-200"
+              />
+              <button
+                onClick={clearImage}
+                aria-label="Remove image"
+                className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full w-6 h-6 flex items-center justify-center"
+              >
+                <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+              </button>
+            </div>
+          )}
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Whatever you want them to read when they come back…"
+            placeholder={image ? "Add a caption (optional)…" : "Whatever you want them to read when they come back…"}
             rows={3}
             maxLength={300}
             autoFocus
             data-testid="compose-note"
             className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-slate-400 resize-none text-slate-700"
           />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <label
+              className="cursor-pointer text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-50"
+              title="Attach a picture"
+            >
+              <Paperclip className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={pickImage}
+                disabled={sending}
+                className="hidden"
+                data-testid="note-image-input"
+              />
+            </label>
             <span className="text-[10px] text-slate-400 tabular-nums">{300 - text.length}</span>
             <div className="flex-1" />
             <button
-              onClick={() => { setComposing(false); setText('') }}
+              onClick={resetCompose}
               className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1.5"
             >
               Cancel
             </button>
             <button
               onClick={send}
-              disabled={!text.trim() || sending}
+              disabled={(!text.trim() && !image) || sending}
               data-testid="send-note"
               className={`${t.btn} px-3 py-1.5 rounded-xl text-xs font-semibold disabled:opacity-50 inline-flex items-center gap-1.5`}
             >
               <Send className="h-3.5 w-3.5" strokeWidth={2.5} />
-              Send
+              {sending ? 'Sending…' : 'Send'}
             </button>
           </div>
         </div>

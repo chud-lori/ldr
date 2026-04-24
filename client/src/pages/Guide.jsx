@@ -126,8 +126,8 @@ export default function Guide() {
       </Section>
 
       <Section Icon={Mail} title="Notes (leave-a-message)">
-        <p>An async "post-it for when you come back." Tap <strong>Leave them a note</strong> on the Dashboard, write up to 300 characters, and hit Send. They see it the next time they open the app.</p>
-        <p>When they tap <strong>Mark read</strong>, the note disappears from both sides and you get a small "they read your note ❤" toast — closure, not a thread.</p>
+        <p>An async "post-it for when you come back." Tap <strong>Leave them a note</strong> on the Dashboard, write up to 300 characters, optionally attach a picture (paperclip icon), and hit Send. They see it the next time they open the app.</p>
+        <p>When they tap <strong>Mark read</strong>, the note (and any attached picture) disappears from both sides and you get a small "they read your note ❤" toast — closure, not a thread.</p>
         <p>Different from Watch Party chat: that's for live commentary while watching together; this is for things you want them to read in their own time.</p>
       </Section>
 

@@ -113,6 +113,7 @@ func main() {
 
 			r.Get("/rooms/{code}/messages", handlers.ListMessages)
 			r.Post("/rooms/{code}/messages", handlers.CreateMessage)
+			r.Get("/rooms/{code}/messages/{id}/image", handlers.ServeMessageImage)
 			r.Post("/rooms/{code}/messages/{id}/read", handlers.ReadMessage)
 
 			r.Get("/rooms/{code}/activity", handlers.GetActivity)

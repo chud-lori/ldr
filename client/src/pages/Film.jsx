@@ -3,41 +3,10 @@ import { api } from '../lib/api'
 import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import { Camera, Lock, Download, AlertTriangle } from '../lib/icons'
+import { compressPhoto } from '../lib/media'
 import InviteButton from '../components/InviteButton'
 
 const MAX_VIDEO_SECONDS = 30
-const MAX_PHOTO_DIMENSION = 1920
-const PHOTO_QUALITY = 0.85
-
-// Resize photos client-side so server only stores ~500 KB JPEGs even when
-// the user picks a 5 MB phone photo. Cuts disk + bandwidth dramatically.
-async function compressPhoto(file) {
-  const url = URL.createObjectURL(file)
-  try {
-    const img = await new Promise((resolve, reject) => {
-      const i = new Image()
-      i.onload = () => resolve(i)
-      i.onerror = reject
-      i.src = url
-    })
-    const ratio = Math.min(1, MAX_PHOTO_DIMENSION / Math.max(img.width, img.height))
-    const w = Math.round(img.width * ratio)
-    const h = Math.round(img.height * ratio)
-    const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
-    canvas.getContext('2d').drawImage(img, 0, 0, w, h)
-    return await new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => blob ? resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' })) : reject(new Error('compression failed')),
-        'image/jpeg',
-        PHOTO_QUALITY,
-      )
-    })
-  } finally {
-    URL.revokeObjectURL(url)
-  }
-}
 
 async function probeVideoDuration(file) {
   const url = URL.createObjectURL(file)
