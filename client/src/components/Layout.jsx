@@ -136,6 +136,8 @@ export default function Layout({ children, ws, online = [] }) {
   const navigate = useNavigate()
   const name = store.get('userName')
   const uid = store.get('userId')
+  const roomData = store.get('roomData')
+  const roomName = roomData?.name?.trim() || 'LDR'
   const [showUserSettings, setShowUserSettings] = useState(false)
 
   const isOnline = online.some((u) => u.userId === uid)
@@ -144,7 +146,12 @@ export default function Layout({ children, ws, online = [] }) {
   return (
     <div className={`min-h-screen ${t.appBg} flex flex-col`}>
       <header className={`bg-white border-b ${t.headerBg} px-4 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm`}>
-        <span className={`font-bold ${t.accent} text-lg tracking-wide`}>LDR</span>
+        <span
+          className={`font-bold ${t.accent} text-lg tracking-wide truncate max-w-[55%]`}
+          title={roomName}
+        >
+          {roomName}
+        </span>
 
         <div className="flex items-center gap-2">
           {/* Partner online indicator */}

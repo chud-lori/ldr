@@ -5,12 +5,15 @@ import { store } from '../lib/store'
 import { useTheme } from '../hooks/useTheme'
 import { useToast } from '../components/Toast'
 import { DEFAULT_THEME } from '../lib/themes'
-import { Heart } from '../lib/icons'
+import { Heart, ArrowLeft, Mail, Send } from '../lib/icons'
 
 export default function Home() {
   const { setTheme } = useTheme()
   const toast = useToast()
-  const [tab, setTab] = useState('create')
+  // 'choose' = pick a path; 'create' = first one in; 'join' = partner sent a code.
+  // Forces a deliberate choice so couples don't accidentally end up in two
+  // separate rooms.
+  const [tab, setTab] = useState('choose')
   const [name, setName] = useState('')
   const [roomName, setRoomName] = useState('')
   const [code, setCode] = useState('')
@@ -128,22 +131,57 @@ export default function Home() {
           <p className="text-gray-400 text-sm mt-1">Stay close, no matter the distance</p>
         </div>
 
-        <div className="flex rounded-lg bg-rose-50 p-1 mb-6">
-          {['create', 'join'].map((t) => (
+        {tab === 'choose' && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600 text-center mb-4">
+              Only one of you needs to create the room — the other joins with a code or link.
+            </p>
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
-                tab === t ? 'bg-white shadow text-rose-600' : 'text-gray-500'
-              }`}
+              onClick={() => setTab('join')}
+              className="w-full text-left rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 p-4 transition-colors"
             >
-              {t === 'create' ? 'Create Room' : 'Join Room'}
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-rose-100 text-rose-500 flex items-center justify-center shrink-0">
+                  <Mail className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-slate-800 text-sm">My partner sent me a code</div>
+                  <div className="text-xs text-slate-500 mt-0.5">Join their room with the link or 6-character code.</div>
+                </div>
+              </div>
             </button>
-          ))}
-        </div>
+            <button
+              onClick={() => setTab('create')}
+              className="w-full text-left rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 p-4 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                  <Send className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-slate-800 text-sm">I'm starting our room</div>
+                  <div className="text-xs text-slate-500 mt-0.5">You'll get a code/link to send to your partner.</div>
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
 
-        {tab === 'create' ? (
+        {(tab === 'create' || tab === 'join') && (
+          <button
+            onClick={() => { setTab('choose'); setError('') }}
+            className="text-xs text-slate-400 hover:text-slate-600 inline-flex items-center gap-1 mb-4"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+            Back
+          </button>
+        )}
+
+        {tab === 'create' && (
           <form onSubmit={handleCreate} className="space-y-3">
+            <p className="text-xs text-slate-500 text-center -mt-1 mb-1">
+              After creating, share the link from your dashboard so your partner can join the same room.
+            </p>
             <input
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-300"
               placeholder="Your name"
@@ -165,8 +203,13 @@ export default function Home() {
               {loading ? 'Creating...' : 'Create Room'}
             </button>
           </form>
-        ) : (
+        )}
+
+        {tab === 'join' && (
           <form onSubmit={handleJoin} className="space-y-3">
+            <p className="text-xs text-slate-500 text-center -mt-1 mb-1">
+              Paste the link your partner sent, or type the 6-character room code below.
+            </p>
             <input
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-rose-300"
               placeholder="Your name"
@@ -192,7 +235,7 @@ export default function Home() {
           </form>
         )}
 
-        {error && <p className="text-red-500 text-xs mt-3 text-center">{error}</p>}
+        {error && tab !== 'choose' && <p className="text-red-500 text-xs mt-3 text-center">{error}</p>}
       </div>
 
       <p className="text-center text-slate-400 text-xs mt-4">

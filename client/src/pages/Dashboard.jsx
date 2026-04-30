@@ -430,20 +430,27 @@ function NotesCard({ ws, roomData, t }) {
       }`}
       data-testid="notes-card"
     >
-      <p className={`font-semibold inline-flex items-center gap-2 ${
-        hasUnread ? `text-base ${t.accent}` : 'text-xs uppercase tracking-wide text-slate-500'
-      }`}>
-        <Mail className={hasUnread ? 'h-5 w-5' : 'h-3.5 w-3.5'} strokeWidth={2} aria-hidden="true" />
-        {hasUnread
-          ? `${unread.length} new note${unread.length > 1 ? 's' : ''} from ${unread[0].senderName || 'them'}`
-          : 'Notes'}
-        {hasUnread && (
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
-          </span>
-        )}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className={`font-semibold inline-flex items-center gap-2 ${
+          hasUnread ? `text-base ${t.accent}` : `text-sm ${t.accent}`
+        }`}>
+          <Mail className={hasUnread ? 'h-5 w-5' : 'h-4 w-4'} strokeWidth={2} aria-hidden="true" />
+          {hasUnread
+            ? `${unread.length} new note${unread.length > 1 ? 's' : ''} from ${unread[0].senderName || 'them'}`
+            : 'Leave a note'}
+          {hasUnread && (
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+            </span>
+          )}
+        </h3>
+      </div>
+      {!hasUnread && !composing && (
+        <p className="text-xs text-slate-500 leading-relaxed -mt-1">
+          A little something for {partner?.name || 'them'} to find when they come back. Disappears once they read it.
+        </p>
+      )}
 
       {unread.length > 0 && (
         <div className="space-y-2">
@@ -480,9 +487,10 @@ function NotesCard({ ws, roomData, t }) {
         <button
           onClick={() => setComposing(true)}
           data-testid="open-compose-note"
-          className="w-full text-left text-sm text-slate-400 hover:text-slate-600 border border-dashed border-slate-200 rounded-xl px-3 py-2.5"
+          className={`w-full inline-flex items-center justify-center gap-2 ${t.btn} rounded-xl px-3 py-2.5 text-sm font-semibold`}
         >
-          Leave {partner?.name || 'them'} a note…
+          <Send className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+          Write {partner?.name || 'them'} a note
         </button>
       )}
 
