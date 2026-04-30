@@ -117,7 +117,8 @@ function WelcomeBanner({ code, t }) {
   const [visible, setVisible] = useState(() => !store.get('seenWelcome'))
   const [copied, setCopied] = useState(false)
   const uid = store.get('userId') || ''
-  const personalLink = `${location.origin}/?roomCode=${code}&userId=${uid}`
+  const linkToken = store.get('authToken') || uid
+  const personalLink = `${location.origin}/?roomCode=${code}&userId=${linkToken}`
 
   function dismiss() {
     store.set('seenWelcome', '1')
@@ -948,7 +949,8 @@ function RoomCode({ code, t }) {
   }
 
   function copyPersonalLink() {
-    const url = `${location.origin}/?roomCode=${code}&userId=${uid}`
+    const linkToken = store.get('authToken') || uid
+    const url = `${location.origin}/?roomCode=${code}&userId=${linkToken}`
     navigator.clipboard.writeText(url).then(() => {
       setCopiedLink(true)
       setTimeout(() => setCopiedLink(false), 2000)

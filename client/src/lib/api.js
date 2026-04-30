@@ -3,8 +3,10 @@ import { store } from './store'
 const BASE = '/api'
 
 function headers() {
-  const uid = store.get('userId') || ''
-  return { 'Content-Type': 'application/json', 'X-User-ID': uid }
+  // Prefer the signed session token; fall back to raw userId for any
+  // client storage left over from before signed tokens shipped.
+  const token = store.get('authToken') || store.get('userId') || ''
+  return { 'Content-Type': 'application/json', 'X-User-ID': token }
 }
 
 async function req(method, path, body) {

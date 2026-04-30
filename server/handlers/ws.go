@@ -37,12 +37,16 @@ func presenceList(hub *ws.Hub, roomID string) []map[string]string {
 func WSHandler(hub *ws.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		code := strings.ToUpper(chi.URLParam(r, "code"))
-		uid := r.URL.Query().Get("userId")
+		uid, sigOk := parseUID(r.URL.Query().Get("userId"))
 		name := r.URL.Query().Get("name")
 		tz := r.URL.Query().Get("tz")
 
 		// Verify caller is a member before upgrading to WebSocket.
 		{
+			if !sigOk {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
 			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 			ok := isMemberOf(ctx, code, uid)
 			cancel()

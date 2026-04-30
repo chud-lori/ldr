@@ -45,13 +45,20 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(handlers.SecurityHeaders)
 	r.Use(corsMiddleware)
+
+	// Tight per-IP buckets on unauthenticated entrypoints to slow down
+	// room-code guessing and create-spam. Generous enough that a real
+	// couple typing a name+code won't trip it.
+	createLimit := handlers.RateLimit(10, time.Minute)
+	joinLimit := handlers.RateLimit(20, time.Minute)
 
 	r.Route("/api", func(r chi.Router) {
 		// Public — no membership required
-		r.Post("/rooms", handlers.CreateRoom)
+		r.With(createLimit).Post("/rooms", handlers.CreateRoom)
 		r.Get("/rooms/{code}", handlers.GetRoom)
-		r.Post("/rooms/{code}/join", handlers.JoinRoom)
+		r.With(joinLimit).Post("/rooms/{code}/join", handlers.JoinRoom)
 
 		// Protected — caller must be a member of the room
 		r.Group(func(r chi.Router) {

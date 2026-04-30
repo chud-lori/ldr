@@ -31,10 +31,15 @@ export default function Home() {
     const uid = (params.get('userId') || '').toUpperCase()
 
     if (rc && uid) {
+      // The URL carries the signed token; the raw userId is the part
+      // before the signature. Store both: raw `userId` for in-app
+      // comparisons, full `authToken` for the X-User-ID header.
+      const rawUid = uid.includes('.') ? uid.split('.')[0] : uid
       store.set('roomCode', rc)
-      store.set('userId', uid)
+      store.set('userId', rawUid)
+      store.set('authToken', uid)
       api.get(`/rooms/${rc}`).then((data) => {
-        const member = data?.members?.find((m) => m.userId === uid)
+        const member = data?.members?.find((m) => m.userId === rawUid)
         if (member) {
           store.set('userName', member.name)
           store.set('roomData', data)
@@ -42,6 +47,7 @@ export default function Home() {
           nav('/dashboard', { replace: true })
         } else {
           store.set('userId', '')
+          store.set('authToken', '')
           setError('This personal link is no longer valid.')
         }
       }).catch(() => setError('Could not connect. Try again.'))
@@ -63,6 +69,7 @@ export default function Home() {
     try {
       const data = await api.post('/rooms', { name: roomName || `${name}'s room`, userName: name })
       store.set('userId', data.userId)
+      store.set('authToken', data.authToken || data.userId)
       store.set('userName', name)
       store.set('roomCode', data.code)
       store.set('roomData', data.room)
@@ -87,6 +94,7 @@ export default function Home() {
       const data = await api.post(joinUrl, { userName: name })
       const isRejoin = existingUid && data.userId === existingUid
       store.set('userId', data.userId)
+      store.set('authToken', data.authToken || data.userId)
       store.set('userName', name)
       store.set('roomCode', data.room.code)
       store.set('roomData', data.room)

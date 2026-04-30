@@ -33,7 +33,10 @@ export default function Guide() {
   const nav = useNavigate()
   const uid = store.get('userId')
   const code = store.get('roomCode')
-  const personalLink = uid && code ? `${location.origin}/?roomCode=${code}&userId=${uid}` : null
+  // Personal link uses the signed authToken so the URL itself is the
+  // credential — server verifies the signature on every request.
+  const linkToken = store.get('authToken') || uid
+  const personalLink = linkToken && code ? `${location.origin}/?roomCode=${code}&userId=${linkToken}` : null
 
   return (
     <div className="space-y-4">

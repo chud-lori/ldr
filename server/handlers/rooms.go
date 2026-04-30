@@ -60,8 +60,16 @@ func respond(w http.ResponseWriter, status int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
+// userID returns the authenticated user's raw ID for use in DB queries.
+// Reads X-User-ID and verifies the signature; returns "" for an invalid
+// or missing token. Handlers behind RequireMember can rely on this being
+// non-empty.
 func userID(r *http.Request) string {
-	return r.Header.Get("X-User-ID")
+	uid, ok := parseUID(r.Header.Get("X-User-ID"))
+	if !ok {
+		return ""
+	}
+	return uid
 }
 
 func CreateRoom(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +99,12 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respond(w, http.StatusCreated, map[string]any{"code": code, "userId": uid, "room": room})
+	respond(w, http.StatusCreated, map[string]any{
+		"code":      code,
+		"userId":    uid,
+		"authToken": signUID(uid),
+		"room":      room,
+	})
 }
 
 func GetRoom(w http.ResponseWriter, r *http.Request) {
@@ -140,11 +153,16 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if userId already exists in room (re-join)
-	existingUID := r.URL.Query().Get("userId")
+	// Check if userId already exists in room (re-join). Accept both signed
+	// tokens and legacy raw userIds so older clients can still rejoin.
+	existingUID, _ := parseUID(r.URL.Query().Get("userId"))
 	for _, m := range room.Members {
-		if m.UserID == existingUID {
-			respond(w, http.StatusOK, map[string]any{"userId": existingUID, "room": room})
+		if existingUID != "" && m.UserID == existingUID {
+			respond(w, http.StatusOK, map[string]any{
+				"userId":    existingUID,
+				"authToken": signUID(existingUID),
+				"room":      room,
+			})
 			return
 		}
 	}
@@ -170,7 +188,11 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	)
 
 	room.Members = append(room.Members, member)
-	respond(w, http.StatusOK, map[string]any{"userId": uid, "room": room})
+	respond(w, http.StatusOK, map[string]any{
+		"userId":    uid,
+		"authToken": signUID(uid),
+		"room":      room,
+	})
 }
 
 func UpdateMe(w http.ResponseWriter, r *http.Request) {

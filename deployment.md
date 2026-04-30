@@ -239,6 +239,14 @@ PORT=8080
 
 # On-disk root for Film Roll media uploads (see §6a below for setup).
 MEDIA_ROOT=/var/lib/ldr/media
+
+# HMAC key that signs every user's session token. Required in production —
+# without it the server uses a fresh random key per boot and every restart
+# invalidates every active session. Generate once and keep it stable:
+#   openssl rand -base64 48
+# Rotating this value force-signs out everyone, which is the global
+# revocation lever if you ever suspect a token leaked.
+SESSION_SECRET=replace-with-output-of-openssl-rand-base64-48
 ```
 
 This file stays on the server only — never commit it.
