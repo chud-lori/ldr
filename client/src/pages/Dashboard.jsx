@@ -420,14 +420,27 @@ function NotesCard({ ws, roomData, t }) {
     }
   }
 
+  const hasUnread = unread.length > 0
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide inline-flex items-center gap-1.5">
-        <Mail className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
-        Notes
-        {unread.length > 0 && (
-          <span className="ml-1 text-[10px] font-bold bg-rose-500 text-white rounded-full px-1.5 py-0.5">
-            {unread.length}
+    <div
+      className={`rounded-2xl p-4 space-y-3 transition-colors ${
+        hasUnread
+          ? `${t.codeBg} border-2 shadow-md`
+          : 'bg-white border border-slate-100 shadow-sm'
+      }`}
+      data-testid="notes-card"
+    >
+      <p className={`font-semibold inline-flex items-center gap-2 ${
+        hasUnread ? `text-base ${t.accent}` : 'text-xs uppercase tracking-wide text-slate-500'
+      }`}>
+        <Mail className={hasUnread ? 'h-5 w-5' : 'h-3.5 w-3.5'} strokeWidth={2} aria-hidden="true" />
+        {hasUnread
+          ? `${unread.length} new note${unread.length > 1 ? 's' : ''} from ${unread[0].senderName || 'them'}`
+          : 'Notes'}
+        {hasUnread && (
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
           </span>
         )}
       </p>
@@ -1249,9 +1262,9 @@ export default function Dashboard({ ws, online = [] }) {
 
       <TimezoneStrip ws={ws} roomData={roomData} online={online} t={t} />
 
-      <ActivityCard roomData={roomData} t={t} />
-
       <NotesCard ws={ws} roomData={roomData} t={t} />
+
+      <ActivityCard roomData={roomData} t={t} />
 
       <MoodCard ws={ws} roomData={roomData} t={t} />
 
