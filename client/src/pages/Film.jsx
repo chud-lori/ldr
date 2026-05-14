@@ -179,7 +179,7 @@ function RollCard({ roll, code, uid, t }) {
     return `${h}h ${m}m`
   }
 
-  const itemUrl = (item) => `/api/rooms/${code}/films/media/${roll.id}/${item.filename}`
+  const itemUrl = (item) => `/api/rooms/${code}/films/media/${roll.id}/${item.filename}?t=${encodeURIComponent(store.get('authToken') || '')}`
 
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">

@@ -153,8 +153,9 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if userId already exists in room (re-join). Accept both signed
-	// tokens and legacy raw userIds so older clients can still rejoin.
+	// Check if userId already exists in room (re-join). The token must be a
+	// valid signed authToken — a raw userId is not enough, otherwise anyone
+	// who learned a member's userId could "rejoin" and take over the slot.
 	existingUID, _ := parseUID(r.URL.Query().Get("userId"))
 	for _, m := range room.Members {
 		if existingUID != "" && m.UserID == existingUID {

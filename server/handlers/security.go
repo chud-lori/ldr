@@ -3,10 +3,21 @@ package handlers
 import (
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 )
+
+// trustProxyHeaders gates whether X-Forwarded-For / X-Real-IP can be
+// trusted. Set TRUST_PROXY_HEADERS=1 only when running behind a proxy
+// that strips these headers from inbound requests and rewrites them
+// (Cloudflare, an ALB, fly.io, etc). On bare metal it must stay off,
+// otherwise the rate limiter and audit logs read attacker-controlled IPs.
+var trustProxyHeaders = func() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("TRUST_PROXY_HEADERS")))
+	return v == "1" || v == "true" || v == "yes"
+}()
 
 // SecurityHeaders sets defensive headers on every response. Tuned for an
 // SPA served same-origin: HSTS for transport, no framing, no MIME sniffing,
@@ -89,14 +100,19 @@ func itoa(n int) string {
 }
 
 func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := strings.Index(xff, ","); i >= 0 {
-			return strings.TrimSpace(xff[:i])
+	if trustProxyHeaders {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			// XFF is appended-to by each hop, so the left-most entry is the
+			// client. We only reach this branch when the operator has
+			// asserted there is a sanitising proxy in front.
+			if i := strings.Index(xff, ","); i >= 0 {
+				return strings.TrimSpace(xff[:i])
+			}
+			return strings.TrimSpace(xff)
 		}
-		return strings.TrimSpace(xff)
-	}
-	if rip := r.Header.Get("X-Real-IP"); rip != "" {
-		return rip
+		if rip := r.Header.Get("X-Real-IP"); rip != "" {
+			return rip
+		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

@@ -462,7 +462,7 @@ function NotesCard({ ws, roomData, t }) {
               </div>
               {m.imageFilename && (
                 <img
-                  src={`/api/rooms/${code}/messages/${m.id}/image`}
+                  src={`/api/rooms/${code}/messages/${m.id}/image?t=${encodeURIComponent(store.get('authToken') || '')}`}
                   alt=""
                   className="rounded-xl max-h-72 w-full object-cover bg-slate-100"
                   loading="lazy"

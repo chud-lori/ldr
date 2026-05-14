@@ -92,10 +92,11 @@ export default function Home() {
     setLoading(true)
     setError('')
     try {
-      const existingUid = store.get('userId') || ''
-      const joinUrl = `/rooms/${code.trim().toUpperCase()}/join${existingUid ? `?userId=${existingUid}` : ''}`
+      const rawUid = store.get('userId') || ''
+      const existingToken = store.get('authToken') || ''
+      const joinUrl = `/rooms/${code.trim().toUpperCase()}/join${existingToken ? `?userId=${encodeURIComponent(existingToken)}` : ''}`
       const data = await api.post(joinUrl, { userName: name })
-      const isRejoin = existingUid && data.userId === existingUid
+      const isRejoin = rawUid && data.userId === rawUid
       store.set('userId', data.userId)
       store.set('authToken', data.authToken || data.userId)
       store.set('userName', name)

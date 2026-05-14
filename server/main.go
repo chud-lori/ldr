@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -39,6 +40,11 @@ func main() {
 	hub := ws.NewHub()
 	go hub.Run()
 	handlers.SetHub(hub)
+	handlers.SetAllowedOrigins(allowedOrigins)
+
+	if len(allowedOrigins) == 0 {
+		log.Println("WARNING: ALLOWED_ORIGINS not set — CORS is open (*) and the WS upgrader skips Origin verification. Set ALLOWED_ORIGINS=https://your.domain[,https://other.domain] in production.")
+	}
 
 	startCleanupWorker()
 
@@ -106,7 +112,6 @@ func main() {
 
 			r.Get("/rooms/{code}/films", handlers.ListFilms)
 			r.Post("/rooms/{code}/films/upload", handlers.UploadFilmItem)
-			r.Get("/rooms/{code}/films/media/{rollId}/{filename}", handlers.ServeFilmItem)
 
 			r.Get("/rooms/{code}/songs", handlers.ListSongs)
 			r.Get("/rooms/{code}/songs/resolve", handlers.ResolveTrack)
@@ -120,12 +125,20 @@ func main() {
 
 			r.Get("/rooms/{code}/messages", handlers.ListMessages)
 			r.Post("/rooms/{code}/messages", handlers.CreateMessage)
-			r.Get("/rooms/{code}/messages/{id}/image", handlers.ServeMessageImage)
 			r.Post("/rooms/{code}/messages/{id}/read", handlers.ReadMessage)
 
 			r.Get("/rooms/{code}/activity", handlers.GetActivity)
 
 			r.Get("/rooms/{code}/timeline", handlers.GetTimeline)
+		})
+
+		// Media GETs — same membership check, but token may ride in `?t=`
+		// because <img>/<video> tags can't attach custom headers.
+		r.Group(func(r chi.Router) {
+			r.Use(handlers.RequireMemberMedia)
+
+			r.Get("/rooms/{code}/films/media/{rollId}/{filename}", handlers.ServeFilmItem)
+			r.Get("/rooms/{code}/messages/{id}/image", handlers.ServeMessageImage)
 		})
 	})
 
@@ -140,9 +153,48 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }
 
+// allowedOrigins is the comma-separated list of origins permitted to call
+// the API cross-origin. Empty means "allow any origin" (dev-friendly but
+// logs a warning at startup so it's not the production default).
+var allowedOrigins = func() []string {
+	raw := strings.TrimSpace(os.Getenv("ALLOWED_ORIGINS"))
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}()
+
+func originAllowed(origin string) bool {
+	if origin == "" {
+		return false
+	}
+	for _, a := range allowedOrigins {
+		if a == origin {
+			return true
+		}
+	}
+	return false
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		// When ALLOWED_ORIGINS is unset we keep the legacy permissive behaviour
+		// so local dev (vite :5173 → api :8080) keeps working; a warning is
+		// logged at startup to make the open posture visible.
+		if len(allowedOrigins) == 0 {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		} else if originAllowed(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type,X-User-ID")
 		if r.Method == http.MethodOptions {

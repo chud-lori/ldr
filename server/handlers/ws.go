@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -15,6 +16,31 @@ import (
 	"ldr-server/models"
 	"ldr-server/ws"
 )
+
+var wsAllowedHosts []string
+
+// SetAllowedOrigins records the operator-configured origin allowlist so
+// the WS upgrader can check it. Called once at startup from main.
+func SetAllowedOrigins(origins []string) {
+	hosts := make([]string, 0, len(origins))
+	for _, o := range origins {
+		if u, err := url.Parse(o); err == nil && u.Host != "" {
+			hosts = append(hosts, u.Host)
+		}
+	}
+	wsAllowedHosts = hosts
+}
+
+// wsAcceptOptions returns the AcceptOptions for the upgrader. When the
+// allowlist is set, nhooyr enforces Origin ∈ list. When empty (dev), we
+// fall back to InsecureSkipVerify — paired with the startup warning so the
+// open posture is noisy by design.
+func wsAcceptOptions() *websocket.AcceptOptions {
+	if len(wsAllowedHosts) == 0 {
+		return &websocket.AcceptOptions{InsecureSkipVerify: true}
+	}
+	return &websocket.AcceptOptions{OriginPatterns: wsAllowedHosts}
+}
 
 func presenceList(hub *ws.Hub, roomID string) []map[string]string {
 	clients := hub.RoomClients(roomID)
@@ -56,9 +82,7 @@ func WSHandler(hub *ws.Hub) http.HandlerFunc {
 			}
 		}
 
-		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-			InsecureSkipVerify: true,
-		})
+		conn, err := websocket.Accept(w, r, wsAcceptOptions())
 		if err != nil {
 			return
 		}

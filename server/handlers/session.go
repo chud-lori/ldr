@@ -45,18 +45,18 @@ func signUID(uid string) string {
 	return uid + "." + sigEnc.EncodeToString(mac.Sum(nil))
 }
 
-// parseUID extracts the user ID from a (possibly signed) token.
-// A token without a "." separator is treated as a legacy raw userId so
-// pre-existing sessions keep working until clients re-issue. Drop that
-// fallback once enough time has passed for active users to rotate.
-// Returns ok=false only when a signature is present but invalid.
+// parseUID extracts the user ID from a signed token. Returns ok=false
+// for any token that isn't of the form "uid.SIGNATURE" with a valid HMAC.
+// Clients with stale unsigned tokens get bounced to the join screen — a
+// one-time cost worth paying so that knowing a raw userId cannot
+// impersonate its owner.
 func parseUID(token string) (string, bool) {
 	if token == "" {
 		return "", false
 	}
 	i := strings.LastIndex(token, ".")
 	if i < 0 {
-		return token, true
+		return "", false
 	}
 	uid, sig := token[:i], token[i+1:]
 	if uid == "" || sig == "" {
