@@ -52,7 +52,7 @@ Client → Cloudflare (TLS termination) → nginx → Go server
                                                   └── /ws/:code  WebSocket upgrade
 ```
 
-All `/api/rooms/:code/*` routes run through the `RequireMember` middleware which checks `X-User-ID` against the room's `members` array in MongoDB before every request. This prevents IDOR between rooms.
+All `/api/rooms/:code/*` routes run through one of two membership middlewares — `RequireMember` for JSON endpoints, `RequireMemberMedia` for image/video GETs (see [Security model](#security-model)). Both verify the caller is in the room's `members` array before the handler runs, which prevents IDOR between rooms.
 
 ### Package structure
 
@@ -95,6 +95,47 @@ Runs in a background goroutine. Waits 10 minutes after startup, then runs every 
 2. **Faded songs** — deletes entries in `songs` with `status ∈ {unheard, dismissed}` and `createdAt` older than 7 days. Saved songs are untouched.
 3. **Faded film rolls** — deletes rolls where `developAt + 7d` has passed. Removes the on-disk roll directory before the Mongo doc.
 
+### Security model
+
+There are no accounts and no passwords. Authentication is a single signed token per user, issued at room create/join and persisted client-side. The model is deliberately small: a room has ≤2 members, every API call carries the token, every protected handler verifies both the signature and room membership.
+
+**Signed session tokens.** `CreateRoom` and `JoinRoom` return both a raw `userId` (8 chars, opaque, used for in-room equality comparisons in the UI) and an `authToken` of the form `UID.BASE32SIG` where `SIG = HMAC-SHA256(SESSION_SECRET, UID)`. `parseUID` rejects any token that isn't of that exact form with a valid signature — a raw uid alone is not enough. This is what stops "you learned someone's userId from a public room read → you can impersonate them" attacks. Base32 (uppercase, no padding) is chosen over base64 because `Home.jsx` applies `.toUpperCase()` to personal-link query params (some chat clients lowercase displayed URLs); base32's alphabet survives that round-trip.
+
+`SESSION_SECRET` is loaded once from env. If unset, the server generates an ephemeral 32-byte secret at boot and logs a warning — every restart then invalidates every active session. Rotating `SESSION_SECRET` is the global revocation lever.
+
+**Where the token rides.** Two paths, depending on what can carry headers:
+
+- `X-User-ID: <authToken>` — set by the `api` wrapper (`client/src/lib/api.js`) on every fetch and by the WS hook (`useWebSocket.js`) in the connect query string. This is the default for all JSON endpoints.
+- `?t=<authToken>` — appended to media URLs (`<img src>` for note attachments, `<img>`/`<video>` for film roll items). Browsers don't attach custom headers to subresource fetches, so media-serving routes need an in-URL token. **Only the two read-only media handlers accept the query form**; every other route is header-only, so query strings can't be used to drive mutations even if a token leaks via logs or a referer.
+
+**Two membership middlewares.** Both call `userID(r)` to extract+verify the token, then count-document on `{code, members.userId}`:
+
+| Middleware | Reads token from | Used for |
+|---|---|---|
+| `RequireMember` | `X-User-ID` header | All `/api/rooms/:code/*` JSON routes |
+| `RequireMemberMedia` | `X-User-ID` header, falls back to `?t=` query param | `/messages/:id/image`, `/films/media/:rollId/:filename` |
+
+The split is intentional: the query-param path is a smaller attack surface than blanket query auth on every route would be.
+
+**WebSocket auth.** Same signed-token model. The connect URL is `/ws/:code?userId=<authToken>&name=...&tz=...`. Before upgrading, the handler runs `parseUID` then `isMemberOf` — failures return 403 *before* the upgrade, so a bad token never reaches `websocket.Accept`.
+
+**Origin checks.** `ALLOWED_ORIGINS` (comma-separated) gates both CORS and the WS upgrader:
+
+- When set, `corsMiddleware` echoes `Access-Control-Allow-Origin: <origin>` only for matching origins (with `Vary: Origin`), and `websocket.Accept` is called with `OriginPatterns` derived from the host of each allowed origin.
+- When unset, CORS is `*` and the WS upgrader uses `InsecureSkipVerify: true`. The startup log prints a `WARNING` so this posture is noisy by design — fine for local dev, a misconfiguration in prod.
+
+**Rate limiting.** In-memory per-IP token bucket via `RateLimit(burst, window)`. Currently applied to the two unauthenticated entry points (`POST /rooms` at 10/min, `POST /rooms/:code/join` at 20/min) to slow room-code guessing and create-spam. The map self-prunes when it exceeds 1024 buckets. `TRUST_PROXY_HEADERS=1` makes `clientIP()` read the left-most `X-Forwarded-For` entry; without it, the limiter falls back to `r.RemoteAddr` — required so that running behind nginx/CF doesn't collapse every visitor to `127.0.0.1`, but only safe to enable when there's actually a proxy stripping inbound XFF.
+
+**Security headers.** Every response carries HSTS (1y, `includeSubDomains`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy` that denies geolocation/payment/usb and self-allows camera/microphone (needed by the film-roll "Take photo" button).
+
+**Privacy filter.** `applyMemberPrivacy` strips `lastSeenAt` from the *other* member's record on every room read where they've toggled `hideLastSeen=true`. The viewer always sees their own state so they can manage the toggle.
+
+**What's intentionally NOT defended.** This is a private 2-person app, not a multi-tenant service. Out of scope:
+
+- **Brute-force on room codes.** 6-char base32 (excludes `0`, `1`, `I`, `O`) = ~10⁹ combos; the 10/min create + 20/min join rate limits make guessing impractical but not impossible. A determined attacker with many IPs could enumerate. Acceptable risk because (a) finding a target room still requires knowing it exists, and (b) the lobby returns no PII beyond display names + signed lastSeen.
+- **Token leakage from logs.** Chi's request logger prints full URLs including `?t=` tokens. Treat application logs as semi-sensitive — rotate `SESSION_SECRET` if a log archive leaves the server.
+- **Mongo encryption-at-rest beyond what Atlas provides.** All durable state is in MongoDB; we don't add field-level crypto on top of Atlas's transparent encryption.
+
 ---
 
 ## Database
@@ -130,14 +171,17 @@ There is no login. Identity is stored in `localStorage`:
 | Key | Value |
 |---|---|
 | `roomCode` | 6-char room code |
-| `userId` | 8-char opaque ID |
+| `userId` | 8-char opaque ID — used for in-app equality checks (`m.userId === uid`); **not sent to the server as proof of identity** |
+| `authToken` | Signed token `UID.BASE32SIG` — what actually goes in `X-User-ID` and in `?t=` for media URLs |
 | `userName` | display name |
 | `roomData` | last-fetched room object (cache) |
 | `theme` | active theme key |
 | `seenWelcome` | `"1"` after dismissing the welcome banner |
 | `notifyPermissionDeclined` | `"1"` if the user rejected the OS-notification permission, so we don't ask again |
 
-The personal link (`/?roomCode=X&userId=Y`) re-hydrates all keys from the URL, enabling multi-device use without accounts.
+The two-key split is deliberate: `userId` is plaintext (it appears in messages, members lists, etc. and is fine to compare client-side), `authToken` is the credential the server actually verifies. Anything that proves "I am uid X" — API headers, WS connect URL, media `?t=`, the personal link — uses `authToken`, never the raw `userId`.
+
+The personal link (`/?roomCode=X&userId=Y`) carries the **signed** authToken in the `userId` URL param (legacy name, kept because changing it would invalidate every existing link). `Home.jsx` splits on the `.` to recover the raw uid for storage, and stores the full token as `authToken`. Multi-device use is account-free this way.
 
 `RequireRoom` (React component) checks that both `roomCode` and `userId` are present in localStorage before rendering any protected route; otherwise redirects to `/`. The Dashboard additionally validates the room still exists on the server on mount — if the API returns an error, it clears localStorage and redirects to `/`.
 

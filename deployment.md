@@ -247,11 +247,71 @@ MEDIA_ROOT=/var/lib/ldr/media
 # Rotating this value force-signs out everyone, which is the global
 # revocation lever if you ever suspect a token leaked.
 SESSION_SECRET=replace-with-output-of-openssl-rand-base64-48
+
+# Comma-separated origins permitted to call the API and open WebSockets.
+# REQUIRED in prod — when empty, CORS is wildcard-open and the WS upgrader
+# skips Origin verification. Boot logs print a WARNING if this is unset.
+# Use scheme + host, no trailing slash; list every origin you serve from:
+ALLOWED_ORIGINS=https://ldr.lori.my.id
+
+# Set to 1 when running behind a reverse proxy that strips and rewrites
+# X-Forwarded-For / X-Real-IP on inbound requests (Cloudflare, nginx with
+# real_ip module, an ALB, fly.io). With Cloudflare in front of nginx in
+# front of Go, this is correct — the rate limiter then reads the actual
+# visitor IP from the left-most XFF entry instead of 127.0.0.1. On bare
+# metal with no proxy, leave it off — otherwise the limiter trusts
+# attacker-controlled headers and is trivially bypassable.
+TRUST_PROXY_HEADERS=1
 ```
 
 This file stays on the server only — never commit it.
 
 > The server reads `MONGO_URI` (or `LDRMONGO` if you prefer that name — both work).
+
+### 6b. Verifying the security env vars stuck
+
+After editing `.env` and restarting (`sudo systemctl restart ldr`), check that the server picked them up:
+
+```bash
+sudo journalctl -u ldr -n 20 --no-pager
+```
+
+You should see the boot banner and **no** warning. If `ALLOWED_ORIGINS` is missing or unread, the very first log line after boot is:
+
+```
+WARNING: ALLOWED_ORIGINS not set — CORS is open (*) and the WS upgrader skips Origin verification. ...
+```
+
+Seeing that line means the running binary is operating in dev-permissive mode regardless of what's in `.env`. Common causes:
+
+- The `.env` file isn't where `EnvironmentFile=` in the systemd unit points (`/home/ubuntu/ldr/.env` per §7) — check with `cat /home/ubuntu/ldr/.env | grep ALLOWED_ORIGINS`.
+- The unit file was edited but not reloaded — `sudo systemctl daemon-reload && sudo systemctl restart ldr`.
+- The binary is older than the env-var-aware code — `cd ~/ldr && git log -1 --format=%h%n%s` and confirm it matches `git ls-remote origin main | awk '{print substr($1,1,7)}'`.
+
+Then a one-shot smoke test from your laptop:
+
+```bash
+# 1. Hostile origin should not be echoed
+curl -s -o /dev/null -D - -H "Origin: https://evil.example" \
+  https://ldr.lori.my.id/api/rooms/AAAAAA | grep -i access-control-allow-origin
+# expect: header absent (or empty), not "*"
+
+# 2. Allowed origin should be echoed back exactly
+curl -s -o /dev/null -D - -H "Origin: https://ldr.lori.my.id" \
+  https://ldr.lori.my.id/api/rooms/AAAAAA | grep -i access-control-allow-origin
+# expect: access-control-allow-origin: https://ldr.lori.my.id
+
+# 3. Unsigned (no-dot) uid should be rejected on a protected route
+curl -s -o /dev/null -w "%{http_code}\n" \
+  -H "X-User-ID: ABCDEFGH" https://ldr.lori.my.id/api/rooms/AAAAAA/journal
+# expect: 403
+
+# 4. Boot logs should NOT contain the ALLOWED_ORIGINS warning
+ssh ubuntu@your-server "sudo journalctl -u ldr -n 50 --no-pager | grep -c 'ALLOWED_ORIGINS not set'"
+# expect: 0
+```
+
+If test (1) still returns `*`, either the binary or the env file is stale — see the bullets above.
 
 ### 6a. Film Roll media directory
 
@@ -272,7 +332,7 @@ Why `/var/lib/ldr/media`:
 
 **Backups**: not needed — media is intentionally ephemeral (7 days post-develop). Loss = at most 14 days of photos, which matches their natural lifetime. Permanent room data is in MongoDB (Atlas, backed up there).
 
-**No nginx changes** — files are served via the Go binary at `/api/rooms/:code/films/media/...` so the existing `/api/` proxy block already covers it. Auth is enforced via the same `RequireMember` middleware as every other endpoint.
+**No nginx changes** — files are served via the Go binary at `/api/rooms/:code/films/media/...` so the existing `/api/` proxy block already covers it. Auth is enforced via the `RequireMemberMedia` middleware, which accepts the signed session token from either the `X-User-ID` header (for fetch/XHR calls) or the `?t=` query parameter (for `<img>`/`<video>` subresource loads, which browsers can't put custom headers on).
 
 **Migrating to cloud storage later** (R2 / S3 / B2): see plan.md notes — ~50 lines of code change, no schema migration. Don't bother until you outgrow ~500 couples.
 
