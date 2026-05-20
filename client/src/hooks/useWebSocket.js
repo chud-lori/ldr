@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { store } from '../lib/store'
+import { ensureMediaToken } from '../lib/mediaToken'
 
 export function useWebSocket(roomCode) {
   const wsRef = useRef(null)
@@ -12,18 +13,32 @@ export function useWebSocket(roomCode) {
   // fires `onclose` late and clobbers `connected` back to false after the real
   // connection is live.
   const activeRef = useRef(null)
+  // Lets the async retry path call the latest `connect` without referencing
+  // it before its const initializer finishes (TDZ-free).
+  const connectRef = useRef(null)
   const [connected, setConnected] = useState(false)
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (!roomCode) return
-    const token = store.get('authToken') || store.get('userId') || ''
+    // The WS upgrade URL gets logged by chi's request middleware, so the
+    // token in the URL has the same leak surface as media `?t=`. Mint a
+    // short-lived media token instead of sending the long-lived authToken.
+    let token
+    try {
+      token = await ensureMediaToken()
+    } catch {
+      // Likely offline or server unreachable. No WS was opened, so the
+      // ws.onclose reconnect path won't fire — schedule a manual retry.
+      reconnectTimer.current = setTimeout(() => { connectRef.current?.() }, 3000)
+      return
+    }
     const name = encodeURIComponent(store.get('userName') || 'unknown')
     const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || '')
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
     // In dev, connect directly to Go server to avoid Vite proxy EPIPE noise.
     // In production, same host/port as the page (nginx proxies /ws/).
     const host = import.meta.env.DEV ? `${location.hostname}:8080` : location.host
-    const url = `${protocol}://${host}/ws/${roomCode}?userId=${token}&name=${name}&tz=${tz}`
+    const url = `${protocol}://${host}/ws/${roomCode}?t=${encodeURIComponent(token)}&name=${name}&tz=${tz}`
 
     const ws = new WebSocket(url)
     wsRef.current = ws
@@ -43,7 +58,7 @@ export function useWebSocket(roomCode) {
       if (activeRef.current !== ws) return
       setConnected(false)
       if (pingTimer.current) clearInterval(pingTimer.current)
-      reconnectTimer.current = setTimeout(connect, 3000)
+      reconnectTimer.current = setTimeout(() => { connectRef.current?.() }, 3000)
     }
 
     ws.onmessage = (e) => {
@@ -59,6 +74,9 @@ export function useWebSocket(roomCode) {
   }, [roomCode])
 
   useEffect(() => {
+    // Mirror the latest connect into a ref so the async-retry path doesn't
+    // need to reference `connect` before its const initializer finishes.
+    connectRef.current = connect
     connect()
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)

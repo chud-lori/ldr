@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { store } from '../lib/store'
 import { api } from '../lib/api'
+import { useMediaToken, mediaUrl } from '../lib/mediaToken'
 import { useTheme } from '../hooks/useTheme'
 import {
   Settings, X, Plus, Heart, Clock, Link2, CalendarHeart,
@@ -332,6 +333,7 @@ function NotesCard({ ws, roomData, t }) {
   const uid = store.get('userId')
   const name = store.get('userName')
   const partner = (roomData?.members || []).find((m) => m.userId !== uid)
+  const mediaToken = useMediaToken()
 
   const [unread, setUnread] = useState([])
   const [composing, setComposing] = useState(false)
@@ -460,9 +462,9 @@ function NotesCard({ ws, roomData, t }) {
                 <span className="text-xs font-semibold text-slate-700">{m.senderName}</span>
                 <span className="text-[10px] text-slate-400">{shortAgo(m.createdAt)}</span>
               </div>
-              {m.imageFilename && (
+              {m.imageFilename && mediaToken && (
                 <img
-                  src={`/api/rooms/${code}/messages/${m.id}/image?t=${encodeURIComponent(store.get('authToken') || '')}`}
+                  src={mediaUrl(`/api/rooms/${code}/messages/${m.id}/image`, mediaToken)}
                   alt=""
                   className="rounded-xl max-h-72 w-full object-cover bg-slate-100"
                   loading="lazy"

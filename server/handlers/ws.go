@@ -63,7 +63,12 @@ func presenceList(hub *ws.Hub, roomID string) []map[string]string {
 func WSHandler(hub *ws.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		code := strings.ToUpper(chi.URLParam(r, "code"))
-		uid, sigOk := parseUID(r.URL.Query().Get("userId"))
+		// The WS upgrade URL is logged by chi's request middleware, so the
+		// token in the URL leaks the same way `?t=` on media GETs does.
+		// Accept ONLY a short-lived media token here — never the long-lived
+		// session token. WS auth is one-shot (checked at upgrade, not on
+		// subsequent frames), so a 10-min lifetime is plenty.
+		uid, sigOk := parseMediaToken(r.URL.Query().Get("t"))
 		name := r.URL.Query().Get("name")
 		tz := r.URL.Query().Get("tz")
 

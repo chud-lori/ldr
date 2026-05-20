@@ -66,6 +66,10 @@ func main() {
 		r.Get("/rooms/{code}", handlers.GetRoom)
 		r.With(joinLimit).Post("/rooms/{code}/join", handlers.JoinRoom)
 
+		// Mints a short-lived media token for the caller's uid. Inline
+		// auth check — any valid X-User-ID is accepted; no room scope.
+		r.Post("/auth/media-token", handlers.MediaToken)
+
 		// Protected — caller must be a member of the room
 		r.Group(func(r chi.Router) {
 			r.Use(handlers.RequireMember)

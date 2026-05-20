@@ -133,6 +133,10 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 
 	var body struct {
 		UserName string `json:"userName"`
+		// Long-lived session token from a prior join, sent in the BODY so
+		// chi's request logger (which captures URLs) never sees it. Old
+		// clients put this in `?userId=` — we no longer accept that path.
+		AuthToken string `json:"authToken"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
 	if strings.TrimSpace(body.UserName) == "" {
@@ -156,7 +160,7 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	// Check if userId already exists in room (re-join). The token must be a
 	// valid signed authToken — a raw userId is not enough, otherwise anyone
 	// who learned a member's userId could "rejoin" and take over the slot.
-	existingUID, _ := parseUID(r.URL.Query().Get("userId"))
+	existingUID, _ := parseUID(body.AuthToken)
 	for _, m := range room.Members {
 		if existingUID != "" && m.UserID == existingUID {
 			respond(w, http.StatusOK, map[string]any{

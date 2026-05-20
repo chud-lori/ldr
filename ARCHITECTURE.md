@@ -103,21 +103,23 @@ There are no accounts and no passwords. Authentication is a single signed token 
 
 `SESSION_SECRET` is loaded once from env. If unset, the server generates an ephemeral 32-byte secret at boot and logs a warning — every restart then invalidates every active session. Rotating `SESSION_SECRET` is the global revocation lever.
 
-**Where the token rides.** Two paths, depending on what can carry headers:
+**Where the token rides.** Two paths, depending on what can carry headers — and they use *different* tokens with different lifetimes:
 
-- `X-User-ID: <authToken>` — set by the `api` wrapper (`client/src/lib/api.js`) on every fetch and by the WS hook (`useWebSocket.js`) in the connect query string. This is the default for all JSON endpoints.
-- `?t=<authToken>` — appended to media URLs (`<img src>` for note attachments, `<img>`/`<video>` for film roll items). Browsers don't attach custom headers to subresource fetches, so media-serving routes need an in-URL token. **Only the two read-only media handlers accept the query form**; every other route is header-only, so query strings can't be used to drive mutations even if a token leaks via logs or a referer.
+- `X-User-ID: <authToken>` — long-lived session token, 2-part format `UID.SIG`. Set by the `api` wrapper (`client/src/lib/api.js`) on every fetch. This is the default for all JSON endpoints and never goes in a URL.
+- `?t=<mediaToken>` — short-lived (~10 min) token used for any path where the credential must live in the URL: `<img src>` for note attachments, `<img>`/`<video>` for film roll items, and the WS upgrade URL. 3-part format `UID.EXP.SIG` where `SIG = HMAC-SHA256(SESSION_SECRET, "UID|EXP")`. URLs leak into journalctl via chi's request logger and (for HTTP) into cross-origin Referer headers, so anything reusable from a leaked URL must expire on its own. The expiry is embedded in the signed payload — no server-side state.
 
-**Two membership middlewares.** Both call `userID(r)` to extract+verify the token, then count-document on `{code, members.userId}`:
+Media tokens are minted on demand by `POST /api/auth/media-token` — caller proves identity with their session token in `X-User-ID`, server returns `{token, expiresAt}` bound to that uid. The client (`client/src/lib/mediaToken.js`) caches one media token in memory, refreshes ~30s before expiry, and exposes a `useMediaToken()` hook so `<img>`/`<video>` components rebind on rotation.
 
-| Middleware | Reads token from | Used for |
-|---|---|---|
-| `RequireMember` | `X-User-ID` header | All `/api/rooms/:code/*` JSON routes |
-| `RequireMemberMedia` | `X-User-ID` header, falls back to `?t=` query param | `/messages/:id/image`, `/films/media/:rollId/:filename` |
+**Two membership middlewares.** Both verify a token, then count-document on `{code, members.userId}`:
 
-The split is intentional: the query-param path is a smaller attack surface than blanket query auth on every route would be.
+| Middleware | Token source | Token format accepted | Used for |
+|---|---|---|---|
+| `RequireMember` | `X-User-ID` header (`parseUID`) | 2-part session token only | All `/api/rooms/:code/*` JSON routes |
+| `RequireMemberMedia` | `X-User-ID` header (preferred), falls back to `?t=` query (`parseMediaToken`) | Header: 2-part session. Query: 3-part media only — never session. | `/messages/:id/image`, `/films/media/:rollId/:filename` |
 
-**WebSocket auth.** Same signed-token model. The connect URL is `/ws/:code?userId=<authToken>&name=...&tz=...`. Before upgrading, the handler runs `parseUID` then `isMemberOf` — failures return 403 *before* the upgrade, so a bad token never reaches `websocket.Accept`.
+The split is intentional: the `?t=` path *only* accepts short-lived 3-part media tokens, never the long-lived 2-part session token. That way a media URL surviving in a log archive or a referer header decays into a useless string within 10 minutes, while the session token (which carries no expiry) never travels through a query string at all.
+
+**WebSocket auth.** The connect URL is `/ws/:code?t=<mediaToken>&name=...&tz=...` — same short-lived 3-part token used for media `?t=`, never the session token. The upgrade URL is logged by chi's request middleware, so it must carry an expiring credential for the same reason media URLs do. WS auth is one-shot: the handler runs `parseMediaToken` then `isMemberOf` before calling `websocket.Accept`, and the upgraded connection isn't re-checked on subsequent frames — so a 10-min token lifetime is plenty, even though sessions stay open for hours. `useWebSocket` calls `ensureMediaToken()` before each connect (and reconnect), so a stale cached token gets refreshed automatically.
 
 **Origin checks.** `ALLOWED_ORIGINS` (comma-separated) gates both CORS and the WS upgrader:
 
@@ -133,7 +135,7 @@ The split is intentional: the query-param path is a smaller attack surface than 
 **What's intentionally NOT defended.** This is a private 2-person app, not a multi-tenant service. Out of scope:
 
 - **Brute-force on room codes.** 6-char base32 (excludes `0`, `1`, `I`, `O`) = ~10⁹ combos; the 10/min create + 20/min join rate limits make guessing impractical but not impossible. A determined attacker with many IPs could enumerate. Acceptable risk because (a) finding a target room still requires knowing it exists, and (b) the lobby returns no PII beyond display names + signed lastSeen.
-- **Token leakage from logs.** Chi's request logger prints full URLs including `?t=` tokens. Treat application logs as semi-sensitive — rotate `SESSION_SECRET` if a log archive leaves the server.
+- **Token leakage from logs (mitigated).** Chi's request logger prints full URLs including the `?t=` tokens carried by media GETs and the WS upgrade. Both paths use short-lived (~10 min) media tokens, so a leaked log archive yields no long-term access. The session token in `X-User-ID` never appears in a URL, and request headers aren't logged. A log archive is still semi-sensitive (display names, room codes) — but it's no longer a credential dump.
 - **Mongo encryption-at-rest beyond what Atlas provides.** All durable state is in MongoDB; we don't add field-level crypto on top of Atlas's transparent encryption.
 
 ---
@@ -172,14 +174,14 @@ There is no login. Identity is stored in `localStorage`:
 |---|---|
 | `roomCode` | 6-char room code |
 | `userId` | 8-char opaque ID — used for in-app equality checks (`m.userId === uid`); **not sent to the server as proof of identity** |
-| `authToken` | Signed token `UID.BASE32SIG` — what actually goes in `X-User-ID` and in `?t=` for media URLs |
+| `authToken` | Signed session token `UID.BASE32SIG` — what goes in `X-User-ID` on every request. Media `?t=` tokens are minted from this and held only in memory. |
 | `userName` | display name |
 | `roomData` | last-fetched room object (cache) |
 | `theme` | active theme key |
 | `seenWelcome` | `"1"` after dismissing the welcome banner |
 | `notifyPermissionDeclined` | `"1"` if the user rejected the OS-notification permission, so we don't ask again |
 
-The two-key split is deliberate: `userId` is plaintext (it appears in messages, members lists, etc. and is fine to compare client-side), `authToken` is the credential the server actually verifies. Anything that proves "I am uid X" — API headers, WS connect URL, media `?t=`, the personal link — uses `authToken`, never the raw `userId`.
+The two-key split is deliberate: `userId` is plaintext (it appears in messages, members lists, etc. and is fine to compare client-side), `authToken` is the credential the server actually verifies. The header `X-User-ID` and the personal link both carry `authToken` directly. Anything that travels in a URL — media `?t=` and the WS upgrade URL — uses a short-lived media token minted on demand (`useMediaToken()` / `ensureMediaToken()` in `client/src/lib/mediaToken.js`), not `authToken`.
 
 The personal link (`/?roomCode=X&userId=Y`) carries the **signed** authToken in the `userId` URL param (legacy name, kept because changing it would invalidate every existing link). `Home.jsx` splits on the `.` to recover the raw uid for storage, and stores the full token as `authToken`. Multi-device use is account-free this way.
 
