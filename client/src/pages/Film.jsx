@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '../lib/api'
 import { store } from '../lib/store'
+import { useMediaToken, mediaUrl } from '../lib/mediaToken'
 import { useTheme } from '../hooks/useTheme'
 import { Camera, Lock, Download, AlertTriangle, Paperclip } from '../lib/icons'
 import { compressPhoto } from '../lib/media'
@@ -159,6 +160,7 @@ export default function FilmPage({ ws, online }) {
 
 function RollCard({ roll, code, uid, t }) {
   const [now, setNow] = useState(Date.now())
+  const mediaToken = useMediaToken()
   useEffect(() => {
     const i = setInterval(() => setNow(Date.now()), 60000)
     return () => clearInterval(i)
@@ -179,7 +181,7 @@ function RollCard({ roll, code, uid, t }) {
     return `${h}h ${m}m`
   }
 
-  const itemUrl = (item) => `/api/rooms/${code}/films/media/${roll.id}/${item.filename}?t=${encodeURIComponent(store.get('authToken') || '')}`
+  const itemUrl = (item) => mediaUrl(`/api/rooms/${code}/films/media/${roll.id}/${item.filename}`, mediaToken)
 
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">

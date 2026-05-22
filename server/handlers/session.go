@@ -5,11 +5,22 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base32"
+	"encoding/json"
 	"log"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
+
+// mediaTokenTTL is the lifetime of a `?t=` media token. Kept short so that
+// a token leaked via the request log or a cross-origin Referer header
+// becomes useless within a few minutes — long enough that a typical
+// dashboard or film-roll view doesn't need to re-mint mid-render, short
+// enough that journalctl exposure is a window, not a key.
+const mediaTokenTTL = 10 * time.Minute
 
 var (
 	sessionSecret     []byte
@@ -72,4 +83,67 @@ func parseUID(token string) (string, bool) {
 		return "", false
 	}
 	return uid, true
+}
+
+// signMediaToken returns "uid.EXP.SIGNATURE" — a short-lived token for use
+// in <img>/<video> src query strings. exp is unix seconds. The signature
+// covers "uid|exp", so an attacker who reads the token from a log cannot
+// extend its lifetime by rewriting the exp component.
+func signMediaToken(uid string, exp int64) string {
+	expStr := strconv.FormatInt(exp, 10)
+	mac := hmac.New(sha256.New, getSessionSecret())
+	mac.Write([]byte(uid + "|" + expStr))
+	return uid + "." + expStr + "." + sigEnc.EncodeToString(mac.Sum(nil))
+}
+
+// parseMediaToken accepts only the 3-part media-token format ("uid.exp.sig")
+// and rejects 2-part session tokens. The X-User-ID header carries the
+// long-lived session token; the `?t=` query param must carry a media token
+// so anything that leaks via logs or Referer headers expires on its own.
+func parseMediaToken(token string) (string, bool) {
+	if token == "" {
+		return "", false
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "", false
+	}
+	uid, expStr, sig := parts[0], parts[1], parts[2]
+	if uid == "" || expStr == "" || sig == "" {
+		return "", false
+	}
+	exp, err := strconv.ParseInt(expStr, 10, 64)
+	if err != nil {
+		return "", false
+	}
+	if time.Now().Unix() > exp {
+		return "", false
+	}
+	expSig, err := sigEnc.DecodeString(sig)
+	if err != nil {
+		return "", false
+	}
+	mac := hmac.New(sha256.New, getSessionSecret())
+	mac.Write([]byte(uid + "|" + expStr))
+	if !hmac.Equal(mac.Sum(nil), expSig) {
+		return "", false
+	}
+	return uid, true
+}
+
+// MediaToken issues a short-lived signed token bound to the caller's uid.
+// Requires a valid session token in X-User-ID — the response token is
+// then suitable for use as `?t=` on /films/media and /messages/image GETs.
+func MediaToken(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+	if uid == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	exp := time.Now().Add(mediaTokenTTL).Unix()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"token":     signMediaToken(uid, exp),
+		"expiresAt": exp,
+	})
 }

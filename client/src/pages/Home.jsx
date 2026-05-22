@@ -94,8 +94,13 @@ export default function Home() {
     try {
       const rawUid = store.get('userId') || ''
       const existingToken = store.get('authToken') || ''
-      const joinUrl = `/rooms/${code.trim().toUpperCase()}/join${existingToken ? `?userId=${encodeURIComponent(existingToken)}` : ''}`
-      const data = await api.post(joinUrl, { userName: name })
+      // Rejoin token rides in the body, not the URL — chi's request
+      // logger captures full URLs including query strings, so anything
+      // in `?...` would land in journalctl alongside the request line.
+      const data = await api.post(`/rooms/${code.trim().toUpperCase()}/join`, {
+        userName: name,
+        authToken: existingToken || undefined,
+      })
       const isRejoin = rawUid && data.userId === rawUid
       store.set('userId', data.userId)
       store.set('authToken', data.authToken || data.userId)

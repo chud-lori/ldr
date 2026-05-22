@@ -35,14 +35,18 @@ func RequireMember(next http.Handler) http.Handler {
 // RequireMemberMedia is like RequireMember but also accepts a signed token
 // via the `?t=` query string. Browsers cannot attach the X-User-ID header
 // to <img>/<video> subresource fetches, so media URLs need an in-URL token.
-// Only use this for read-only GETs — query params leak into server logs
-// and (less so under strict-origin Referrer-Policy) cross-origin referers.
+//
+// The `?t=` path accepts ONLY short-lived media tokens (parseMediaToken,
+// 3-part "uid.exp.sig" format) — never the long-lived session token. Media
+// URLs leak into journalctl via chi's request logger and into cross-origin
+// Referer headers; tokens that can be reused for hours after the leak are
+// the actual exposure, so we mint a fresh 10-min token for every viewer.
 func RequireMemberMedia(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		code := strings.ToUpper(chi.URLParam(r, "code"))
 		uid := userID(r)
 		if uid == "" {
-			uid, _ = parseUID(r.URL.Query().Get("t"))
+			uid, _ = parseMediaToken(r.URL.Query().Get("t"))
 		}
 		if code == "" || uid == "" {
 			http.Error(w, "forbidden", http.StatusForbidden)

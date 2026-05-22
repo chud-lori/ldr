@@ -332,7 +332,7 @@ Why `/var/lib/ldr/media`:
 
 **Backups**: not needed — media is intentionally ephemeral (7 days post-develop). Loss = at most 14 days of photos, which matches their natural lifetime. Permanent room data is in MongoDB (Atlas, backed up there).
 
-**No nginx changes** — files are served via the Go binary at `/api/rooms/:code/films/media/...` so the existing `/api/` proxy block already covers it. Auth is enforced via the `RequireMemberMedia` middleware, which accepts the signed session token from either the `X-User-ID` header (for fetch/XHR calls) or the `?t=` query parameter (for `<img>`/`<video>` subresource loads, which browsers can't put custom headers on).
+**No nginx changes** — files are served via the Go binary at `/api/rooms/:code/films/media/...` so the existing `/api/` proxy block already covers it. Auth is enforced via the `RequireMemberMedia` middleware. The `X-User-ID` header path takes the long-lived session token; the `?t=` query-string path (used by `<img>`/`<video>` subresource loads, which can't carry custom headers) takes a separate **short-lived media token** that expires in ~10 minutes — so anything that leaks via journalctl or a cross-origin Referer becomes useless on its own. The client mints media tokens on demand from `POST /api/auth/media-token`; no operator action needed.
 
 **Migrating to cloud storage later** (R2 / S3 / B2): see plan.md notes — ~50 lines of code change, no schema migration. Don't bother until you outgrow ~500 couples.
 
